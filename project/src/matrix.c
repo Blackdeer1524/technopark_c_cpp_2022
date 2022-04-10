@@ -1,7 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
+
 #include "matrix.h"
 
+#define ERROR 1
+#define NORMAL 0
+
+// NOTE(stitaevskiy): Place your implementation here
 
 Matrix *create_matrix(size_t rows, size_t cols)
 {
@@ -13,13 +18,13 @@ Matrix *create_matrix(size_t rows, size_t cols)
     new_matrix->n_cols = cols;
 
     // allocation of an array of pointers to double
-    new_matrix->items = (double **) calloc(rows, sizeof (double *));
+    new_matrix->items = calloc(rows, sizeof (double *));
     if (new_matrix->items == NULL)
         return NULL;
 
     for (size_t i=0; i<rows; ++i)
     {
-        new_matrix->items[i] = (double *) calloc(cols, sizeof (double));
+        new_matrix->items[i] = calloc(cols, sizeof (double));
         if (new_matrix->items[i] == NULL)
             return NULL;
     }
@@ -63,34 +68,41 @@ void free_matrix(Matrix* matrix)
 
 int get_rows(const Matrix* matrix, size_t* rows)
 {
+    if (matrix == NULL)
+        return ERROR;
     *rows = matrix->n_rows;
-    return 0;
+    return NORMAL;
 }
 
 int get_cols(const Matrix* matrix, size_t* cols)
 {
+    if (matrix == NULL)
+        return ERROR;
     *cols = matrix->n_cols;
-    return 0;
+    return NORMAL;
 }
 
 int get_elem(const Matrix* matrix, size_t row, size_t col, double* val)
 {
-    if (row >= matrix->n_rows || col >= matrix->n_cols)
-        return 1;
+    if (matrix == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
+        return ERROR;
     *val = matrix->items[row][col];
-    return 0;
+    return NORMAL;
 }
 
 int set_elem(Matrix* matrix, size_t row, size_t col, double val)
 {
-    if (row >= matrix->n_rows || col >= matrix->n_cols)
-        return 1;
+    if (matrix == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
+        return ERROR;
     matrix->items[row][col] = val;
-    return 0;
+    return NORMAL;
 }
 
 Matrix* mul_scalar(const Matrix* matrix, double val)
 {
+    if (matrix == NULL)
+        return NULL;
+
     Matrix *scaled_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
     if (scaled_matrix == NULL)
         return NULL;
@@ -102,6 +114,9 @@ Matrix* mul_scalar(const Matrix* matrix, double val)
 
 Matrix* transp(const Matrix* matrix)
 {
+    if (matrix == NULL)
+        return NULL;
+
     Matrix *transposed_matrix = create_matrix(matrix->n_cols, matrix->n_rows);
     if (transposed_matrix == NULL)
         return NULL;
@@ -111,31 +126,46 @@ Matrix* transp(const Matrix* matrix)
     return transposed_matrix;
 }
 
+static double summation_operator(double l, double r)
+{
+    return l + r;
+}
+
+static double substraction_operator(double l, double r)
+{
+    return l - r;
+}
+
+static Matrix *matrix_elementwise_operator(const Matrix *l, const Matrix *r, double (*operator)(double, double))
+{
+    if (l == NULL || r == NULL || l->n_rows != r->n_rows || l->n_cols != r->n_cols)
+        return NULL;
+
+    Matrix *result_mat = create_matrix(l->n_rows, l->n_cols);
+    if (result_mat == NULL)
+        return NULL;
+
+    for (size_t i=0; i < l->n_rows; ++i)
+        for (size_t j=0; j < l->n_cols; ++j)
+            result_mat->items[i][j] = (*operator)(l->items[i][j], r->items[i][j]);
+    return result_mat;
+}
+
 Matrix* sum(const Matrix* l, const Matrix* r)
 {
-    Matrix *sum_matrix = create_matrix(l->n_rows, l->n_cols);
-    if (sum_matrix == NULL)
-        return NULL;
-    for (size_t i=0; i<sum_matrix->n_rows; ++i)
-        for (size_t j=0; j<sum_matrix->n_cols; ++j)
-            sum_matrix->items[i][j] = l->items[i][j] + r->items[i][j];
+    Matrix *sum_matrix = matrix_elementwise_operator(l, r, &summation_operator);
     return sum_matrix;
 }
 
 Matrix* sub(const Matrix* l, const Matrix* r)
 {
-    Matrix *sub_matrix = create_matrix(l->n_rows, l->n_cols);
-    if (sub_matrix == NULL)
-        return NULL;
-    for (size_t i=0; i<sub_matrix->n_rows; ++i)
-        for (size_t j=0; j<sub_matrix->n_cols; ++j)
-            sub_matrix->items[i][j] = l->items[i][j] - r->items[i][j];
-    return sub_matrix;
+    Matrix *sum_matrix = matrix_elementwise_operator(l, r, &substraction_operator);
+    return sum_matrix;
 }
 
 Matrix* mul(const Matrix* l, const Matrix* r)
 {
-    if (l->n_cols != r->n_rows)
+    if (l == NULL || r == NULL || l->n_cols != r->n_rows)
         return NULL;
 
     Matrix *mul_matrix = create_matrix(l->n_rows, r->n_cols);
@@ -151,8 +181,10 @@ Matrix* mul(const Matrix* l, const Matrix* r)
     return mul_matrix;
 }
 
-// error_occurred - маркер ошибки
 static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
+    if (matrix == NULL)
+        return NULL;
+
     Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_rows - 1);
     if (minor != NULL)
     {
@@ -176,14 +208,17 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     return minor;
 }
 
+// error_occurred - маркер ошибки
 static double compute_det(const Matrix *matrix, int *error_occurred)
 {
+    if (matrix == NULL)
+        *error_occurred = ERROR;
     if (*error_occurred)
-        return 0;
+        return NORMAL;
     if (matrix->n_rows == 1)
         return matrix->items[0][0];
 
-    size_t i;  //, new_row, new_col;
+    size_t i;
     double current_det = 0;
     for (i=0; i<matrix->n_cols; ++i)
     {
@@ -196,24 +231,27 @@ static double compute_det(const Matrix *matrix, int *error_occurred)
             free_matrix(submatrix);
         }
         else
-            *error_occurred = 1;
+            *error_occurred = ERROR;
     }
     return current_det;
 }
 
 int det(const Matrix* matrix, double* val)
 {
-    int error = 0;
-    double result_det = compute_det(matrix, &error);
-    if (error)
-        return 1;
+    if (matrix == NULL)
+        return ERROR;
+
+    int status = NORMAL;
+    double result_det = compute_det(matrix, &status);
+    if (status)
+        return ERROR;
     *val = result_det;
-    return 0;
+    return NORMAL;
 }
 
 Matrix* adj(const Matrix* matrix)
 {
-    if (matrix->n_rows != matrix->n_cols)
+    if (matrix == NULL || matrix->n_rows != matrix->n_cols)
         return NULL;
 
     Matrix *adjoining_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
@@ -240,7 +278,7 @@ Matrix* adj(const Matrix* matrix)
 
 Matrix* inv(const Matrix* matrix)
 {
-    if (matrix->n_rows != matrix->n_cols)
+    if (matrix == NULL || matrix->n_rows != matrix->n_cols)
         return NULL;
 
     double cur_det;
@@ -250,12 +288,6 @@ Matrix* inv(const Matrix* matrix)
 
     Matrix *mat_inverse = adj(matrix);
     if (mat_inverse != NULL)
-    {
         mat_inverse = mul_scalar(mat_inverse, 1 / cur_det);
-    }
     return mat_inverse;
 }
-
-
-
-// NOTE(stitaevskiy): Place your implementation here
