@@ -231,9 +231,30 @@ Matrix* adj(const Matrix* matrix)
                 if (det_status)
                     return NULL;
                 adjoining_matrix->items[j][i] *= ((i + j) % 2) ? (-1) : (1);
+                free_matrix(current_minor);
             }
     }
     return adjoining_matrix;
 }
+
+Matrix* inv(const Matrix* matrix)
+{
+    if (matrix->n_rows != matrix->n_cols)
+        return NULL;
+
+    double cur_det;
+    int det_status = det(matrix, &cur_det);
+    if (det_status || cur_det == 0)
+        return NULL;
+
+    Matrix *mat_inverse = adj(matrix);
+    if (mat_inverse != NULL)
+    {
+        mat_inverse = mul_scalar(mat_inverse, 1 / cur_det);
+    }
+    return mat_inverse;
+}
+
+
 
 // NOTE(stitaevskiy): Place your implementation here

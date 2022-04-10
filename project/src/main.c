@@ -19,7 +19,7 @@ int main(void) {
     matrix->items[2][2] = 1244;
 
     //double test_det = 0;
-    Matrix *test_adj = adj(matrix);
+    Matrix *test_adj = inv(matrix);
     for(int i = 0; i < 3; i++) {
         for(int j = 0; j < 3; j++) {
             printf("%lf ", test_adj->items[i][j]);
