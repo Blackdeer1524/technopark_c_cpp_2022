@@ -151,7 +151,7 @@ Matrix* mul(const Matrix* l, const Matrix* r)
     return mul_matrix;
 }
 
-// error_occured - маркер ошибки
+// error_occurred - маркер ошибки
 static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_rows - 1);
     if (minor != NULL)
@@ -176,9 +176,9 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     return minor;
 }
 
-static double compute_det(const Matrix *matrix, int *error_occured)
+static double compute_det(const Matrix *matrix, int *error_occurred)
 {
-    if (*error_occured)
+    if (*error_occurred)
         return 0;
     if (matrix->n_rows == 1)
         return matrix->items[0][0];
@@ -191,12 +191,12 @@ static double compute_det(const Matrix *matrix, int *error_occured)
         Matrix *submatrix = get_minor(matrix, 0, i);
         if (submatrix != NULL)
         {
-            current_det += (i % 2) ? -matrix->items[0][i] * compute_det(submatrix, error_occured) :
-                                      matrix->items[0][i] * compute_det(submatrix, error_occured);
+            current_det += (i % 2) ? -matrix->items[0][i] * compute_det(submatrix, error_occurred) :
+                                      matrix->items[0][i] * compute_det(submatrix, error_occurred);
             free_matrix(submatrix);
         }
         else
-            *error_occured = 1;
+            *error_occurred = 1;
     }
     return current_det;
 }
