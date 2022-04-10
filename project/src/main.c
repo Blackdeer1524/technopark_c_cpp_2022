@@ -18,9 +18,13 @@ int main(void) {
     matrix->items[2][1] = 123;
     matrix->items[2][2] = 1244;
 
+    double val;
+    get_elem(matrix, 3, 3, &val);
+    printf("%lf\n", val);
+
     //double test_det = 0;
-    Matrix *test_adj = inv(matrix);
-    for(int i = 0; i < 3; i++) {
+    Matrix *test_adj = create_matrix_from_file("./mat_creation.txt");
+    for(int i = 0; i < 2; i++) {
         for(int j = 0; j < 3; j++) {
             printf("%lf ", test_adj->items[i][j]);
         }

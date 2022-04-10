@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "matrix.h"
 
+
 Matrix *create_matrix(size_t rows, size_t cols)
 {
     Matrix *new_matrix = malloc(sizeof(Matrix));
@@ -74,7 +75,7 @@ int get_cols(const Matrix* matrix, size_t* cols)
 
 int get_elem(const Matrix* matrix, size_t row, size_t col, double* val)
 {
-    if (matrix->n_rows < row || matrix->n_rows < col)
+    if (row >= matrix->n_rows || col >= matrix->n_cols)
         return 1;
     *val = matrix->items[row][col];
     return 0;
@@ -82,7 +83,7 @@ int get_elem(const Matrix* matrix, size_t row, size_t col, double* val)
 
 int set_elem(Matrix* matrix, size_t row, size_t col, double val)
 {
-    if (matrix->n_rows < row || matrix->n_rows < col)
+    if (row >= matrix->n_rows || col >= matrix->n_cols)
         return 1;
     matrix->items[row][col] = val;
     return 0;
@@ -145,7 +146,7 @@ Matrix* mul(const Matrix* l, const Matrix* r)
         {
             mul_matrix->items[i][j] = 0;
             for (size_t k = 0; k < l->n_cols; ++k)
-                mul_matrix->items[i][j] += l->items[i][k] + r->items[k][j];
+                mul_matrix->items[i][j] += l->items[i][k] * r->items[k][j];
         }
     return mul_matrix;
 }
