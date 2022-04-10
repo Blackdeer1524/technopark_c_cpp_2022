@@ -190,29 +190,12 @@ static double compute_det(const Matrix *matrix, int *error_occured)
         Matrix *submatrix = get_minor(matrix, 0, i);
         if (submatrix != NULL)
         {
-            current_det += (i % 2 == 0) ? matrix->items[0][i] * compute_det(submatrix, error_occured) :
-                                         -matrix->items[0][i] * compute_det(submatrix, error_occured);
+            current_det += (i % 2) ? -matrix->items[0][i] * compute_det(submatrix, error_occured) :
+                                      matrix->items[0][i] * compute_det(submatrix, error_occured);
             free_matrix(submatrix);
         }
         else
             *error_occured = 1;
-
-//        Matrix *submatrix = create_matrix(matrix->n_rows-1, matrix->n_rows-1);
-//        if (submatrix != NULL)
-//        {
-//            for (new_row=1; new_row < matrix->n_rows; ++new_row)
-//            {
-//                for (new_col=0; new_col<i; ++new_col)
-//                    submatrix->items[new_row-1][new_col] = matrix->items[new_row][new_col];
-//                for (new_col=i+1; new_col < matrix->n_cols; ++new_col)
-//                    submatrix->items[new_row-1][new_col-1] = matrix->items[new_row][new_col];
-//            }
-//            current_det += (i % 2 == 0) ? matrix->items[0][i] * compute_det(submatrix, error_occured) :
-//                                         -matrix->items[0][i] * compute_det(submatrix, error_occured);
-//            free_matrix(submatrix);
-//        }
-//        else
-//            *error_occured = 1;
     }
     return current_det;
 }
@@ -227,9 +210,30 @@ int det(const Matrix* matrix, double* val)
     return 0;
 }
 
-//Matrix* adj(const Matrix* matrix)
-//{
-//
-//}
+Matrix* adj(const Matrix* matrix)
+{
+    if (matrix->n_rows != matrix->n_cols)
+        return NULL;
+
+    Matrix *adjoining_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
+    if (adjoining_matrix != NULL)
+    {
+        size_t i, j;
+        int det_status;
+        Matrix *current_minor;
+        for (i = 0; i < adjoining_matrix->n_rows; ++i)
+            for (j = 0; j < adjoining_matrix->n_cols; ++j)
+            {
+                current_minor = get_minor(matrix, i, j);
+                if (current_minor == NULL)
+                    return NULL;
+                det_status = det(current_minor, &adjoining_matrix->items[j][i]);
+                if (det_status)
+                    return NULL;
+                adjoining_matrix->items[j][i] *= ((i + j) % 2) ? (-1) : (1);
+            }
+    }
+    return adjoining_matrix;
+}
 
 // NOTE(stitaevskiy): Place your implementation here
