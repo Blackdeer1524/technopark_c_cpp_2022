@@ -3,8 +3,10 @@
 
 #include <stddef.h>
 
-
-typedef struct Matrix {
+typedef struct Matrix{
+    size_t n_rows;
+    size_t n_cols;
+    double **items;
 } Matrix;
 
 // Init/release operations
@@ -28,8 +30,8 @@ Matrix* mul(const Matrix* l, const Matrix* r);
 
 // Extra operations
 int det(const Matrix* matrix, double* val);
-Matrix* adj(const Matrix* matrix);
-Matrix* inv(const Matrix* matrix);
+//Matrix* adj(const Matrix* matrix);
+//Matrix* inv(const Matrix* matrix);
 
 
 #endif //_MATRIX_H_
