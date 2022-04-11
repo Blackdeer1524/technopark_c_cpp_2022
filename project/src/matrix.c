@@ -156,13 +156,11 @@ static Matrix *matrix_elementwise_operator(const Matrix *l, const Matrix *r,
 }
 
 Matrix* sum(const Matrix* l, const Matrix* r) {
-    Matrix *sum_matrix = matrix_elementwise_operator(l, r, &summation_operator);
-    return sum_matrix;
+    return matrix_elementwise_operator(l, r, &summation_operator);;
 }
 
 Matrix* sub(const Matrix* l, const Matrix* r) {
-    Matrix *sum_matrix = matrix_elementwise_operator(l, r, &substraction_operator);
-    return sum_matrix;
+    return matrix_elementwise_operator(l, r, &substraction_operator);;
 }
 
 Matrix* mul(const Matrix* l, const Matrix* r) {
@@ -212,7 +210,7 @@ static double compute_det(const Matrix *matrix, int *error_occurred) {
     if (matrix == NULL)
         *error_occurred = ERROR;
     if (*error_occurred)
-        return NORMAL;
+        return ERROR;
     if (matrix->n_rows == 1)
         return matrix->items[0][0];
 
@@ -227,6 +225,7 @@ static double compute_det(const Matrix *matrix, int *error_occurred) {
             free_matrix(submatrix);
         } else {
             *error_occurred = ERROR;
+            break;
         }
     }
     return current_det;
@@ -282,8 +281,11 @@ Matrix* inv(const Matrix* matrix) {
     if (det_status || cur_det == 0)
         return NULL;
 
-    Matrix *mat_inverse = adj(matrix);
-    if (mat_inverse != NULL)
-        mat_inverse = mul_scalar(mat_inverse, 1 / cur_det);
-    return mat_inverse;
+    Matrix *inverse_matrix = NULL;
+    Matrix *adj_matrix = adj(matrix);
+    if (adj_matrix != NULL) {
+        inverse_matrix = mul_scalar(adj_matrix, 1 / cur_det);
+        free_matrix(adj_matrix);
+    }
+    return inverse_matrix;
 }
