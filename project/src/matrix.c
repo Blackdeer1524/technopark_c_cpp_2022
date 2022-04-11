@@ -245,7 +245,7 @@ int det(const Matrix* matrix, double* val) {
 }
 
 Matrix* adj(const Matrix* matrix) {
-    if (matrix == NULL || matrix->n_rows != matrix->n_cols)
+    if (matrix == NULL || matrix->n_rows != matrix->n_cols || matrix->n_rows == 1)
         return NULL;
 
     Matrix *adjoining_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
@@ -276,6 +276,11 @@ Matrix* adj(const Matrix* matrix) {
 Matrix* inv(const Matrix* matrix) {
     if (matrix == NULL || matrix->n_rows != matrix->n_cols)
         return NULL;
+    if (matrix->n_rows == 1) {
+        Matrix *one_by_one_inv = create_matrix(1, 1);
+        one_by_one_inv->items[0][0] = 1.0 / matrix->items[0][0];
+        return one_by_one_inv;
+    }
 
     double cur_det;
     int det_status = det(matrix, &cur_det);
