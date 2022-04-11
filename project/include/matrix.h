@@ -29,6 +29,8 @@ Matrix* sum(const Matrix* l, const Matrix* r);
 Matrix* sub(const Matrix* l, const Matrix* r);
 Matrix* mul(const Matrix* l, const Matrix* r);
 
+// Matrix* get_minor(const Matrix *matrix, size_t row, size_t col);
+
 // Extra operations
 int det(const Matrix* matrix, double* val);
 Matrix* adj(const Matrix* matrix);

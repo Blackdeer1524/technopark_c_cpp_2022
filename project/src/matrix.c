@@ -64,6 +64,7 @@ Matrix* create_matrix_from_file(const char* path_file) {
                 return NULL;
             }
         }
+    fclose(matrix_data);
     return read_matrix;
 }
 
@@ -183,7 +184,7 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     if (matrix == NULL || matrix->n_rows <= 1 || matrix->n_cols <= 1)
         return NULL;
 
-    Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_rows - 1);
+    Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_cols - 1);
     if (minor != NULL) {
         size_t new_row, new_col;
         // Разбиты на несколько циклов для ускорения работы
