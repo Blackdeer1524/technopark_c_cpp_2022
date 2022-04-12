@@ -9,6 +9,9 @@
 // NOTE(stitaevskiy): Place your implementation here
 
 Matrix *create_matrix(size_t rows, size_t cols) {
+    if (rows == 0 || cols == 0)
+        return NULL;
+
     Matrix *new_matrix = malloc(sizeof(Matrix));
     if (new_matrix == NULL) {
         return NULL;
