@@ -35,8 +35,7 @@ Matrix* create_matrix_from_file(const char* path_file) {
         return NULL;
 
     size_t n_rows, n_cols;
-    int scanning_results;
-    scanning_results = fscanf(matrix_data, "%zu %zu", &n_rows, &n_cols);
+    int scanning_results = fscanf(matrix_data, "%zu %zu", &n_rows, &n_cols);
 
     if (scanning_results != 2) {
         fclose(matrix_data);
@@ -276,30 +275,30 @@ Matrix* adj(const Matrix* matrix) {
         return NULL;
 
     Matrix *adjugate_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
-    if (adjugate_matrix != NULL) {
-        Matrix *current_minor;
-        for (size_t i = 0; i < adjugate_matrix->n_rows; ++i)
-            for (size_t j = 0; j < adjugate_matrix->n_cols; ++j) {
-                current_minor = get_minor(matrix, i, j);
-                if (current_minor == NULL) {
-                    free_matrix(adjugate_matrix);
-                    return NULL;
-                }
+    if (adjugate_matrix == NULL)
+        return NULL;
 
-                double adj_item;
-                int det_status = det(current_minor, &adj_item);
-                if (det_status) {
-                    free_matrix(current_minor);
-                    free_matrix(adjugate_matrix);
-                    return NULL;
-                }
-                if ((i + j) % 2)
-                    adj_item *= -1;
-
-                set_elem(adjugate_matrix, j, i, adj_item);
-                free_matrix(current_minor);
+    for (size_t i = 0; i < adjugate_matrix->n_rows; ++i)
+        for (size_t j = 0; j < adjugate_matrix->n_cols; ++j) {
+            Matrix *current_minor = get_minor(matrix, i, j);
+            if (current_minor == NULL) {
+                free_matrix(adjugate_matrix);
+                return NULL;
             }
-    }
+
+            double adj_item;
+            int det_status = det(current_minor, &adj_item);
+            if (det_status) {
+                free_matrix(current_minor);
+                free_matrix(adjugate_matrix);
+                return NULL;
+            }
+            if ((i + j) % 2)
+                adj_item *= -1;
+
+            set_elem(adjugate_matrix, j, i, adj_item);
+            free_matrix(current_minor);
+        }
     return adjugate_matrix;
 }
 
@@ -308,7 +307,7 @@ Matrix* inv(const Matrix* matrix) {
         return NULL;
     if (matrix->n_rows == 1) {
         Matrix *one_by_one_inv = create_matrix(1, 1);
-        double origin_item;
+        double origin_item = 1;
         get_elem(matrix, 0, 0, &origin_item);
         set_elem(one_by_one_inv, 0, 0, 1.0 / origin_item);
         return one_by_one_inv;
