@@ -48,7 +48,7 @@ Matrix* create_matrix_from_file(const char* path_file) {
         return NULL;
     }
 
-    double scanned_item;
+    double scanned_item = 0;
     for (size_t i = 0; i < n_rows; ++i)
         for (size_t j = 0; j < n_cols; ++j) {
             scanning_results = fscanf(matrix_data, "%lf", &scanned_item);
@@ -106,7 +106,7 @@ Matrix* mul_scalar(const Matrix* matrix, double val) {
     if (scaled_matrix == NULL)
         return NULL;
 
-    double origin_matrix_item;
+    double origin_matrix_item = 0;
     for (size_t i=0; i < matrix->n_rows; ++i)
         for (size_t j=0; j < matrix->n_cols; ++j) {
             get_elem(matrix, i, j, &origin_matrix_item);
@@ -123,7 +123,7 @@ Matrix* transp(const Matrix* matrix) {
     if (transposed_matrix == NULL)
         return NULL;
 
-    double origin_matrix_item;
+    double origin_matrix_item = 0;
     for (size_t i=0; i < matrix->n_rows; ++i)
         for (size_t j=0; j < matrix->n_cols; ++j) {
             get_elem(matrix, i, j, &origin_matrix_item);
@@ -149,7 +149,7 @@ static Matrix *matrix_elementwise_operator(const Matrix *l, const Matrix *r,
     if (result_mat == NULL)
         return NULL;
 
-    double l_item, r_item;
+    double l_item = 0, r_item = 0;
     for (size_t i=0; i < l->n_rows; ++i)
         for (size_t j=0; j < l->n_cols; ++j) {
             get_elem(l, i, j, &l_item);
@@ -177,8 +177,7 @@ Matrix* mul(const Matrix* l, const Matrix* r) {
 
     for (size_t i=0; i < mul_matrix->n_rows; ++i)
         for (size_t j=0; j < mul_matrix->n_cols; ++j) {
-            double l_item, r_item, result_item;
-            result_item = 0;
+            double l_item = 0, r_item = 0, result_item = 0;
             for (size_t k = 0; k < l->n_cols; ++k) {
                 get_elem(l, i, k, &l_item);
                 get_elem(r, k, j, &r_item);
@@ -197,7 +196,7 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     if (minor == NULL)
         return NULL;
 
-    double origin_item;
+    double origin_item = 0;
     // Разбиты на несколько циклов для ускорения работы
     // вычеркивает строку row
     for (size_t new_row = 0; new_row < row; ++new_row) {
@@ -286,7 +285,7 @@ Matrix* adj(const Matrix* matrix) {
                 return NULL;
             }
 
-            double adj_item;
+            double adj_item = 0;
             int det_status = det(current_minor, &adj_item);
             if (det_status) {
                 free_matrix(current_minor);
