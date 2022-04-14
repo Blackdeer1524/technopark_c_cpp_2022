@@ -72,21 +72,21 @@ void free_matrix(Matrix* matrix) {
 }
 
 int get_rows(const Matrix* matrix, size_t* rows) {
-    if (matrix == NULL)
+    if (matrix == NULL || rows == NULL)
         return ERROR;
     *rows = matrix->n_rows;
     return NORMAL;
 }
 
 int get_cols(const Matrix* matrix, size_t* cols) {
-    if (matrix == NULL)
+    if (matrix == NULL || cols == NULL)
         return ERROR;
     *cols = matrix->n_cols;
     return NORMAL;
 }
 
 int get_elem(const Matrix* matrix, size_t row, size_t col, double* val) {
-    if (matrix == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
+    if (matrix == NULL || val == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
         return ERROR;
     *val = *(matrix->items + row * matrix->n_cols + col);  // [row][col]
     return NORMAL;
@@ -195,31 +195,31 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
         return NULL;
 
     Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_cols - 1);
-    if (minor != NULL) {
-        size_t new_row, new_col;
-        double origin_item;
-        // Разбиты на несколько циклов для ускорения работы
-        // вычеркивает строку row
-        for (new_row = 0; new_row < row; ++new_row) {
-            // вычеркивает столбец row
-            for (new_col = 0; new_col < col; ++new_col) {
-                get_elem(matrix, new_row, new_col, &origin_item);
-                set_elem(minor, new_row, new_col, origin_item);
-            }
-            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
-                get_elem(matrix, new_row, new_col, &origin_item);
-                set_elem(minor, new_row, new_col - 1, origin_item);
-            }
+    if (minor == NULL)
+        return NULL;
+
+    double origin_item;
+    // Разбиты на несколько циклов для ускорения работы
+    // вычеркивает строку row
+    for (size_t new_row = 0; new_row < row; ++new_row) {
+        // вычеркивает столбец row
+        for (size_t new_col = 0; new_col < col; ++new_col) {
+            get_elem(matrix, new_row, new_col, &origin_item);
+            set_elem(minor, new_row, new_col, origin_item);
         }
-        for (new_row = row + 1; new_row < matrix->n_rows; ++new_row) {
-            for (new_col = 0; new_col < col; ++new_col) {
-                get_elem(matrix, new_row, new_col, &origin_item);
-                set_elem(minor, new_row - 1, new_col, origin_item);
-            }
-            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
-                get_elem(matrix, new_row, new_col, &origin_item);
-                set_elem(minor, new_row - 1, new_col - 1, origin_item);
-            }
+        for (size_t new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
+            get_elem(matrix, new_row, new_col, &origin_item);
+            set_elem(minor, new_row, new_col - 1, origin_item);
+        }
+    }
+    for (size_t new_row = row + 1; new_row < matrix->n_rows; ++new_row) {
+        for (size_t new_col = 0; new_col < col; ++new_col) {
+            get_elem(matrix, new_row, new_col, &origin_item);
+            set_elem(minor, new_row - 1, new_col, origin_item);
+        }
+        for (size_t new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
+            get_elem(matrix, new_row, new_col, &origin_item);
+            set_elem(minor, new_row - 1, new_col - 1, origin_item);
         }
     }
     return minor;
@@ -229,10 +229,10 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
 static double compute_det(const Matrix *matrix, int *error_occurred) {
     if (matrix == NULL) {
         *error_occurred = ERROR;
-        return ERROR;
+        return 0;
     }
 
-    double current_item;
+    double current_item = 0;
     if (matrix->n_rows == 1) {
         get_elem(matrix, 0, 0, &current_item);
         return current_item;
