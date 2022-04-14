@@ -130,21 +130,6 @@ static void _test_create_from_file(const char *in, TestCase test_case) {
                 printf("\nExpected element: %.4lf\n", elem);
                 printf("Received element: %.4lf\n", test_case.expected_matrix[i][j]);
 
-//                printf("%zu %zu\n", i, j);
-//                for(size_t q = 0; q < matrix->n_rows; q++) {
-//                    for(size_t r = 0; r < matrix->n_cols; r++) {
-//                        printf("%10.2lf ", matrix->items[q][r]);
-//                    }
-//                    printf("\n");
-//                }
-//                printf("\n");
-//                for(size_t q = 0; q < matrix->n_rows; q++) {
-//                    for(size_t r = 0; r < matrix->n_cols; r++) {
-//                        printf("%10.2lf ", test_case.expected_matrix[q][r]);
-//                    }
-//                    printf("\n");
-//                }
-
                 assert(0 && "The value of the element does not match the expected");
             }
         }

@@ -6,7 +6,7 @@
 typedef struct Matrix {
     size_t n_rows;
     size_t n_cols;
-    double **items;
+    double *items;
 } Matrix;
 
 // Init/release operations
@@ -28,8 +28,6 @@ Matrix* transp(const Matrix* matrix);
 Matrix* sum(const Matrix* l, const Matrix* r);
 Matrix* sub(const Matrix* l, const Matrix* r);
 Matrix* mul(const Matrix* l, const Matrix* r);
-
-// Matrix* get_minor(const Matrix *matrix, size_t row, size_t col);
 
 // Extra operations
 int det(const Matrix* matrix, double* val);

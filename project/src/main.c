@@ -12,7 +12,9 @@ void print_matrix(Matrix *mat) {
 
     for (size_t i = 0; i < mat->n_rows; ++i) {
         for (size_t j = 0; j < mat->n_cols; ++j) {
-            printf("%lf ", mat->items[i][j]);
+            double mat_item;
+            get_elem(mat, i, j, &mat_item);
+            printf("%lf ", mat_item);
         }
         printf("\n");
     }
@@ -20,9 +22,9 @@ void print_matrix(Matrix *mat) {
 }
 
 int main(void) {
-    Matrix *test = create_matrix(1, 1);
-
-    test->items[0][0] = 100;
+//    Matrix *test = create_matrix(1, 1);
+//
+//    test->items[0][0] = 100;
 //    test->items[0][1] = 1;
 //    test->items[0][2] = 1;
 //
@@ -47,16 +49,16 @@ int main(void) {
 
 //    free_matrix(adj_test);
 //
-    Matrix *inv_test = inv(test);
-    Matrix *test_mul = mul_scalar(test, 1/test->items[0][0]);
-
-    print_matrix(test_mul);
-    print_matrix(inv_test);
-    print_matrix(test);
+//    Matrix *inv_test = inv(test);
+//    Matrix *test_mul = mul_scalar(test, 1/test->items[0][0]);
 //
-    free_matrix(test_mul);
-    free_matrix(inv_test);
-    free_matrix(test);
+//    print_matrix(test_mul);
+//    print_matrix(inv_test);
+//    print_matrix(test);
+//
+//    free_matrix(test_mul);
+//    free_matrix(inv_test);
+//    free_matrix(test);
 //
 //    char path[] = "./project/tests/data/test_matrices_mul/case_1/left.txt";
 //    Matrix *creation_test = create_matrix_from_file(path);

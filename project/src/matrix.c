@@ -20,30 +20,21 @@ Matrix *create_matrix(size_t rows, size_t cols) {
     new_matrix->n_cols = cols;
 
     // allocation of an array of pointers to double
-    new_matrix->items = calloc(rows, sizeof(double *));
+    new_matrix->items = calloc(rows * cols, sizeof(double));
     if (new_matrix->items == NULL) {
         free_matrix(new_matrix);
         return NULL;
-    }
-
-    size_t i;
-    for (i = 0; i < rows; ++i) {
-        new_matrix->items[i] = calloc(cols, sizeof(double));
-        if (new_matrix->items[i] == NULL) {
-            free_matrix(new_matrix);
-            return NULL;
-        }
     }
     return new_matrix;
 }
 
 Matrix* create_matrix_from_file(const char* path_file) {
-    size_t i, j, n_rows, n_cols;
     FILE *matrix_data;
     matrix_data = fopen(path_file, "r");
     if (matrix_data == NULL)
         return NULL;
 
+    size_t n_rows, n_cols;
     int scanning_results;
     scanning_results = fscanf(matrix_data, "%zu %zu", &n_rows, &n_cols);
 
@@ -58,14 +49,16 @@ Matrix* create_matrix_from_file(const char* path_file) {
         return NULL;
     }
 
-    for (i=0; i < n_rows; ++i)
-        for (j=0; j < n_cols; ++j) {
-            scanning_results = fscanf(matrix_data, "%lf", &(read_matrix->items[i][j]));
+    double scanned_item;
+    for (size_t i = 0; i < n_rows; ++i)
+        for (size_t j = 0; j < n_cols; ++j) {
+            scanning_results = fscanf(matrix_data, "%lf", &scanned_item);
             if (!scanning_results) {
                 free_matrix(read_matrix);
                 fclose(matrix_data);
                 return NULL;
             }
+            set_elem(read_matrix, i, j, scanned_item);
         }
     fclose(matrix_data);
     return read_matrix;
@@ -73,10 +66,6 @@ Matrix* create_matrix_from_file(const char* path_file) {
 
 void free_matrix(Matrix* matrix) {
     if (matrix != NULL) {
-        if (matrix->items != NULL) {
-            for (size_t i = 0; i < matrix->n_rows; ++i)
-                free(matrix->items[i]);
-        }
         free(matrix->items);
     }
     free(matrix);
@@ -99,14 +88,14 @@ int get_cols(const Matrix* matrix, size_t* cols) {
 int get_elem(const Matrix* matrix, size_t row, size_t col, double* val) {
     if (matrix == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
         return ERROR;
-    *val = matrix->items[row][col];
+    *val = *(matrix->items + row * matrix->n_cols + col);  // [row][col]
     return NORMAL;
 }
 
 int set_elem(Matrix* matrix, size_t row, size_t col, double val) {
     if (matrix == NULL || row >= matrix->n_rows || col >= matrix->n_cols)
         return ERROR;
-    matrix->items[row][col] = val;
+    *(matrix->items + row * matrix->n_cols + col) = val;
     return NORMAL;
 }
 
@@ -117,9 +106,13 @@ Matrix* mul_scalar(const Matrix* matrix, double val) {
     Matrix *scaled_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
     if (scaled_matrix == NULL)
         return NULL;
+
+    double origin_matrix_item;
     for (size_t i=0; i < matrix->n_rows; ++i)
-        for (size_t j=0; j < matrix->n_cols; ++j)
-            scaled_matrix->items[i][j] = val * matrix->items[i][j];
+        for (size_t j=0; j < matrix->n_cols; ++j) {
+            get_elem(matrix, i, j, &origin_matrix_item);
+            set_elem(scaled_matrix, i, j, val * origin_matrix_item);
+        }
     return scaled_matrix;
 }
 
@@ -130,9 +123,13 @@ Matrix* transp(const Matrix* matrix) {
     Matrix *transposed_matrix = create_matrix(matrix->n_cols, matrix->n_rows);
     if (transposed_matrix == NULL)
         return NULL;
+
+    double origin_matrix_item;
     for (size_t i=0; i < matrix->n_rows; ++i)
-        for (size_t j=0; j < matrix->n_cols; ++j)
-            transposed_matrix->items[j][i] = matrix->items[i][j];
+        for (size_t j=0; j < matrix->n_cols; ++j) {
+            get_elem(matrix, i, j, &origin_matrix_item);
+            set_elem(transposed_matrix, j, i, origin_matrix_item);
+        }
     return transposed_matrix;
 }
 
@@ -153,9 +150,13 @@ static Matrix *matrix_elementwise_operator(const Matrix *l, const Matrix *r,
     if (result_mat == NULL)
         return NULL;
 
+    double l_item, r_item;
     for (size_t i=0; i < l->n_rows; ++i)
-        for (size_t j=0; j < l->n_cols; ++j)
-            result_mat->items[i][j] = (*operator)(l->items[i][j], r->items[i][j]);
+        for (size_t j=0; j < l->n_cols; ++j) {
+            get_elem(l, i, j, &l_item);
+            get_elem(r, i, j, &r_item);
+            set_elem(result_mat, i, j, (*operator)(l_item, r_item));
+        }
     return result_mat;
 }
 
@@ -174,11 +175,17 @@ Matrix* mul(const Matrix* l, const Matrix* r) {
     Matrix *mul_matrix = create_matrix(l->n_rows, r->n_cols);
     if (mul_matrix == NULL)
         return NULL;
+
     for (size_t i=0; i < mul_matrix->n_rows; ++i)
         for (size_t j=0; j < mul_matrix->n_cols; ++j) {
-            mul_matrix->items[i][j] = 0;
-            for (size_t k = 0; k < l->n_cols; ++k)
-                mul_matrix->items[i][j] += l->items[i][k] * r->items[k][j];
+            double l_item, r_item, result_item;
+            result_item = 0;
+            for (size_t k = 0; k < l->n_cols; ++k) {
+                get_elem(l, i, k, &l_item);
+                get_elem(r, k, j, &r_item);
+                result_item += l_item * r_item;
+            }
+            set_elem(mul_matrix, i, j, result_item);
         }
     return mul_matrix;
 }
@@ -190,20 +197,29 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
     Matrix *minor = create_matrix(matrix->n_rows - 1, matrix->n_cols - 1);
     if (minor != NULL) {
         size_t new_row, new_col;
+        double origin_item;
         // Разбиты на несколько циклов для ускорения работы
         // вычеркивает строку row
         for (new_row = 0; new_row < row; ++new_row) {
             // вычеркивает столбец row
-            for (new_col = 0; new_col < col; ++new_col)
-                minor->items[new_row][new_col] = matrix->items[new_row][new_col];
-            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col)
-                minor->items[new_row][new_col - 1] = matrix->items[new_row][new_col];
+            for (new_col = 0; new_col < col; ++new_col) {
+                get_elem(matrix, new_row, new_col, &origin_item);
+                set_elem(minor, new_row, new_col, origin_item);
+            }
+            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
+                get_elem(matrix, new_row, new_col, &origin_item);
+                set_elem(minor, new_row, new_col - 1, origin_item);
+            }
         }
         for (new_row = row + 1; new_row < matrix->n_rows; ++new_row) {
-            for (new_col = 0; new_col < col; ++new_col)
-                minor->items[new_row - 1][new_col] = matrix->items[new_row][new_col];
-            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col)
-                minor->items[new_row - 1][new_col - 1] = matrix->items[new_row][new_col];
+            for (new_col = 0; new_col < col; ++new_col) {
+                get_elem(matrix, new_row, new_col, &origin_item);
+                set_elem(minor, new_row - 1, new_col, origin_item);
+            }
+            for (new_col = col + 1; new_col < matrix->n_cols; ++new_col) {
+                get_elem(matrix, new_row, new_col, &origin_item);
+                set_elem(minor, new_row - 1, new_col - 1, origin_item);
+            }
         }
     }
     return minor;
@@ -211,21 +227,29 @@ static Matrix *get_minor(const Matrix *matrix, size_t row, size_t col) {
 
 // error_occurred - маркер ошибки
 static double compute_det(const Matrix *matrix, int *error_occurred) {
-    if (matrix == NULL)
+    if (matrix == NULL) {
         *error_occurred = ERROR;
-    if (*error_occurred)
         return ERROR;
-    if (matrix->n_rows == 1)
-        return matrix->items[0][0];
+    }
 
-    size_t i;
+    double current_item;
+    if (matrix->n_rows == 1) {
+        get_elem(matrix, 0, 0, &current_item);
+        return current_item;
+    }
+
     double current_det = 0;
-    for (i=0; i < matrix->n_cols; ++i) {
+    for (size_t i = 0; i < matrix->n_cols; ++i) {
+        get_elem(matrix, 0, i, &current_item);
+        if (!current_item)  // There is no sense in computing a det(submatrix) if corresponding equals to zero
+            continue;
+        if (i % 2)
+            current_item *= -1;
+
         // Выделение подматрицы вычеркиванием 0 строки и i-го столбца из исходной
         Matrix *submatrix = get_minor(matrix, 0, i);
-        if (submatrix != NULL) {
-            current_det += (i % 2) ? -matrix->items[0][i] * compute_det(submatrix, error_occurred) :
-                                      matrix->items[0][i] * compute_det(submatrix, error_occurred);
+        if (submatrix != NULL && !(*error_occurred)) {
+            current_det += current_item * compute_det(submatrix, error_occurred);
             free_matrix(submatrix);
         } else {
             *error_occurred = ERROR;
@@ -251,29 +275,32 @@ Matrix* adj(const Matrix* matrix) {
     if (matrix == NULL || matrix->n_rows != matrix->n_cols || matrix->n_rows == 1)
         return NULL;
 
-    Matrix *adjoining_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
-    if (adjoining_matrix != NULL) {
-        size_t i, j;
-        int det_status;
+    Matrix *adjugate_matrix = create_matrix(matrix->n_rows, matrix->n_cols);
+    if (adjugate_matrix != NULL) {
         Matrix *current_minor;
-        for (i = 0; i < adjoining_matrix->n_rows; ++i)
-            for (j = 0; j < adjoining_matrix->n_cols; ++j) {
+        for (size_t i = 0; i < adjugate_matrix->n_rows; ++i)
+            for (size_t j = 0; j < adjugate_matrix->n_cols; ++j) {
                 current_minor = get_minor(matrix, i, j);
                 if (current_minor == NULL) {
-                    free_matrix(adjoining_matrix);
+                    free_matrix(adjugate_matrix);
                     return NULL;
                 }
-                det_status = det(current_minor, &adjoining_matrix->items[j][i]);
+
+                double adj_item;
+                int det_status = det(current_minor, &adj_item);
                 if (det_status) {
                     free_matrix(current_minor);
-                    free_matrix(adjoining_matrix);
+                    free_matrix(adjugate_matrix);
                     return NULL;
                 }
-                adjoining_matrix->items[j][i] *= ((i + j) % 2) ? (-1) : (1);
+                if ((i + j) % 2)
+                    adj_item *= -1;
+
+                set_elem(adjugate_matrix, j, i, adj_item);
                 free_matrix(current_minor);
             }
     }
-    return adjoining_matrix;
+    return adjugate_matrix;
 }
 
 Matrix* inv(const Matrix* matrix) {
@@ -281,7 +308,9 @@ Matrix* inv(const Matrix* matrix) {
         return NULL;
     if (matrix->n_rows == 1) {
         Matrix *one_by_one_inv = create_matrix(1, 1);
-        one_by_one_inv->items[0][0] = 1.0 / matrix->items[0][0];
+        double origin_item;
+        get_elem(matrix, 0, 0, &origin_item);
+        set_elem(one_by_one_inv, 0, 0, 1.0 / origin_item);
         return one_by_one_inv;
     }
 
