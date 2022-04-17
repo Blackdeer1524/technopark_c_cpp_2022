@@ -54,30 +54,8 @@ int next_line_checker(char current_char) {
     return (current_char == '\n');
 }
 
-int hname_stop_chars_checker(char current_char) {
+int header_name_end_checker(char current_char) {
     return (current_char == ':' || next_line_checker(current_char));
-}
-
-// возвращает длину прочитанного
-int read_in_buffer(FILE *email_data,
-                   char saving_buffer[],
-                   int starting_position,
-                   int limit,
-                   int (*is_stop_char)(char current_char)) {
-    int c, i, stop_flag = 0;
-    for (i = starting_position;
-         i < limit - 1 && (c = fgetc(email_data)) != EOF && !(stop_flag = (*is_stop_char)(c));
-         ++i)
-        saving_buffer[i] = c;
-
-    if (stop_flag) {
-        ungetc(c, email_data);
-    }
-    else if (i == starting_position && i < limit - 1)   // EOF check
-        return EOF;
-
-    saving_buffer[i] = '\0';
-    return i;
 }
 
 void remove_whitespaces(FILE *email_data) {
@@ -96,10 +74,36 @@ int get_colon(FILE *email_data) {
     return 1;
 }
 
-int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
-    int current_buff_length = 0;
-    int c;
+// возвращает длину прочитанного
+int read_in_buffer(FILE *email_data,
+                   char saving_buffer[],
+                   int starting_position,
+                   int limit,
+                   int (*is_stop_char)(char current_char)) {
+    int c, i, stop_flag = 0;
+    for (i = starting_position;
+         i < limit - 1 && (c = fgetc(email_data)) != EOF && !(stop_flag = (*is_stop_char)(c));
+         ++i)
+        saving_buffer[i] = c;
 
+    if (i == starting_position && i < limit - 1)   // EOF check
+        return EOF;
+    else if (stop_flag) {
+        ungetc(c, email_data);
+        for (int j = i - 1; j >= 0 && saving_buffer[j] == ' '; --j, --i)
+            saving_buffer[j] = '\0';
+    } else
+        saving_buffer[i] = '\0';
+    return i;
+}
+
+int get_header_name(FILE *email_data, char header_value_buf[], int limit) {
+    return read_in_buffer(email_data, header_value_buf,  0, limit, header_name_end_checker);
+}
+
+int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
+    int c, current_buff_length = 0;
+    remove_whitespaces(email_data);
     while (1) {
         current_buff_length = read_in_buffer(email_data, header_value_buf, current_buff_length, limit,
                                              next_line_checker);
@@ -138,8 +142,13 @@ int main(int argc, const char **argv) {
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
 
+    get_header_name(email_data, current_lexem, BUFFSIZE);
+    printf("<START>%s<END>\n\n", current_lexem);
+
+    get_colon(email_data);
+
     get_header_value(email_data, current_lexem, BUFFSIZE);
-    printf("%s\n", current_lexem);
+    printf("<START>%s<END>\n", current_lexem);
     fclose(email_data);
 //
 //    char *s;
