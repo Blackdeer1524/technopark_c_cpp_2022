@@ -1,5 +1,6 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
 
 #define BUFFSIZE 500
 
@@ -22,78 +23,72 @@
  Допустима последовательность \r\n и наоборот.
  */
 
-/*
- STR, COLON, WHITESPACES, LINESEP
- */
+#define FILE_EOF (-1)
+#define FILE_OK 0
+#define FILE_BLOCK_TERM 1
 
-static char current_lexem[BUFFSIZE];
 
-typedef enum {
-    L_HNAME,
-    L_COLON,
-    L_HVALUE,
-    L_COUNT
-} lexem_t;
+int next_line_checker(FILE *datafile, char *next_char) {
+    int c = fgetc(datafile);
+    int opposite_c;
 
-typedef enum {
-    S_BEGIN,
-    S_HNAME,
-    S_HVALUE,
-    S_END,
-    S_COUNT
-} state_t;
+    if (c == EOF)
+        return FILE_EOF;
+    else if (c == '\n')
+        opposite_c = '\r';
+    else if (c == '\r')
+        opposite_c = '\n';
+    else {
+        *next_char = c;
+        return FILE_OK;
+    }
 
-typedef int (*lexem_getter)(FILE *);
-
-typedef struct {
-    state_t next_state;
-    lexem_getter get_next_lexem;
-} rule_t;
-
-int next_line_checker(char current_char) {
-    return (current_char == '\n');
+    if ((c = fgetc(datafile)) == EOF)
+        return FILE_EOF;
+    else if (c != opposite_c)
+        ungetc(c, datafile);
+    return FILE_BLOCK_TERM;
 }
 
-int header_name_end_checker(char current_char) {
-    return (current_char == ':' || next_line_checker(current_char));
+int header_name_end_checker(FILE *datafile, char *next_char) {
+    int status = next_line_checker(datafile, next_char);
+    if (status != FILE_OK)
+        return status;
+
+    if (*next_char == ':')
+        return FILE_BLOCK_TERM;
+
+    return FILE_OK;
 }
+
+typedef int (*block_termination_checker)(FILE *, char *);
 
 void remove_whitespaces(FILE *email_data) {
     int c;
     while ((c = fgetc(email_data)) == ' ')
         ;
+    ungetc(c, email_data);
 }
 
-int get_colon(FILE *email_data) {
-    remove_whitespaces(email_data);
-    int c = fgetc(email_data);
-    if (c == ':')
-        return 0;
-    else if (c == EOF)
-        return -1;
-    return 1;
-}
-
-// возвращает длину прочитанного
+// возвращает длину прочитанного; EOF если EOF И ничего не прочитал
 int read_in_buffer(FILE *email_data,
                    char saving_buffer[],
                    int starting_position,
                    int limit,
-                   int (*is_stop_char)(char current_char)) {
-    int c, i, stop_flag = 0;
+                   block_termination_checker is_stop_char) {
+    int i, block_terminator_status = FILE_OK;
+    char c;
     for (i = starting_position;
-         i < limit - 1 && (c = fgetc(email_data)) != EOF && !(stop_flag = (*is_stop_char)(c));
+         i < limit - 1 && (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK;
          ++i)
         saving_buffer[i] = c;
+    saving_buffer[i] = '\0';
 
-    if (i == starting_position && i < limit - 1)   // EOF check
+    if (block_terminator_status == FILE_EOF && i == starting_position)
         return EOF;
-    else if (stop_flag) {
-        ungetc(c, email_data);
-        for (int j = i - 1; j >= 0 && saving_buffer[j] == ' '; --j, --i)
-            saving_buffer[j] = '\0';
-    } else
-        saving_buffer[i] = '\0';
+
+    for (int j = i - 1; j >= starting_position && saving_buffer[j] == ' '; --j, --i)
+        saving_buffer[j] = '\0';
     return i;
 }
 
@@ -109,10 +104,10 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
                                              next_line_checker);
         // fgetc also skips line termination char
         // c = fgetc(email_data) : getting the first char of the next line to check whether header value continues
-        if (current_buff_length == EOF || current_buff_length == limit - 1 ||
-            fgetc(email_data) == EOF || (c = fgetc(email_data)) == EOF)
+        if (current_buff_length == EOF || current_buff_length == limit - 1 || (c = fgetc(email_data)) == EOF)
             break;
 
+        // checks header value continuation
         if (c == ' ') {
             remove_whitespaces(email_data);
             header_value_buf[current_buff_length] = ' ';
@@ -122,16 +117,17 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
             break;
         }
     }
-    return (c == EOF) ? c : current_buff_length;
+    return (c == EOF && !current_buff_length) ? c : current_buff_length;
 }
 
 
-static rule_t transition_table[S_COUNT][L_COUNT] =
- //                  L_HNAME            L_COLON         L_HVALUE
-/* S_BEGIN  */ {{{S_HNAME, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
-/* S_HNAME  */  {{S_BEGIN, NULL},  {S_HVALUE, NULL}, {S_BEGIN, NULL}},
-/* S_HVALUE */  {{S_BEGIN, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
-/* S_END    */  {{S_END,   NULL},  {S_END, NULL   },  {S_END, NULL}}};
+//static rule_t transition_table[S_COUNT][L_COUNT] =
+// //                  L_HNAME            L_COLON         L_HVALUE
+///* S_BEGIN  */ {{{S_HNAME, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
+///* S_HNAME  */  {{S_BEGIN, NULL},  {S_HVALUE, NULL}, {S_BEGIN, NULL}},
+///* S_HVALUE */  {{S_BEGIN, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
+///* S_END    */  {{S_END,   NULL},  {S_END, NULL   },  {S_END, NULL}}};
+
 
 
 int main(int argc, const char **argv) {
@@ -139,32 +135,24 @@ int main(int argc, const char **argv) {
         return -1;
     }
 
+    char current_lexem[BUFFSIZE];
+
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
 
-    get_header_name(email_data, current_lexem, BUFFSIZE);
-    printf("<START>%s<END>\n\n", current_lexem);
+    int read_status;
+    while (1) {
+        read_status = get_header_name(email_data, current_lexem, BUFFSIZE);
 
-    get_colon(email_data);
+        printf("%d <hSTART>%s<hEND>\n", read_status, current_lexem);
+        if (read_status == EOF)
+            break;
 
-    get_header_value(email_data, current_lexem, BUFFSIZE);
-    printf("<START>%s<END>\n", current_lexem);
+        read_status = get_header_value(email_data, current_lexem, BUFFSIZE);
+        printf("%d <vSTART>%s<vEND>\n", read_status, current_lexem);
+        if (read_status == EOF)
+            break;
+    }
     fclose(email_data);
-//
-//    char *s;
-//    int c;
-//    state_t current_state = S_BEGIN;
-//    int current_buffer_length;
-//    while ((current_buffer_length = read_next_lexem(email_data)) != -1 && current_buffer_length != BUFFSIZE - 1) {
-//        // \n or :
-//        if (current_state == S_BEGIN) {
-//            if (current_buffer_length == 0) {
-//                if ((c = fgetc(email_data)) == ':')
-//                    current_state = S_HBEGIN;
-//                ungetc(c, email_data);
-//        }
-//
-//        }
-//    }
     return 0;
 }
