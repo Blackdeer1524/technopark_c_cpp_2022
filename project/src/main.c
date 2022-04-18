@@ -2,7 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define BUFFSIZE 500
+#define BUFFSIZE 512
 
 // <От кого письмо>|<Кому письмо>|<Время получения письма>|<Количество партов письма>
 /*
@@ -61,6 +61,22 @@ int header_name_end_checker(FILE *datafile, char *next_char) {
 
 typedef int (*block_termination_checker)(FILE *, char *);
 
+typedef enum {
+    L_OTHER_HEADER,
+    L_FROM_HEADER,
+    L_TO_HEADER,
+    L_CONTENT_TYPE_HEADER,
+    L_DATE_HEADER,
+    L_COUNT
+} lexem_t;
+
+typedef enum {
+    S_BEGIN,
+    S_COUNT
+} state_t;
+
+typedef void callback(const char []);
+
 void remove_whitespaces(FILE *email_data) {
     int c;
     while ((c = fgetc(email_data)) == ' ')
@@ -117,15 +133,36 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
     return current_buff_length;
 }
 
-typedef enum {
-    L_OTHER_TAG,
-    L_FROM_TAG,
-    L_TO_TAG,
-    L_CONTENT_TYPE_TAG,
-    L_DATE_TAG,
-    L_RECEIVED,
-    L_COUNT
-} lexem_t;
+int skip_read_in_buffer(FILE *email_data, block_termination_checker is_stop_char) {
+    int i, block_terminator_status = FILE_OK;
+    char c;
+    for (i = 0; (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK; ++i)
+        ;
+    if (block_terminator_status == FILE_EOF && i == 0)
+        return EOF;
+    return i;
+}
+
+int skip_header_value(FILE *email_data) {
+    int c, current_buff_length = 0;
+    remove_whitespaces(email_data);
+    while (1) {
+        current_buff_length = skip_read_in_buffer(email_data, next_line_checker);
+        // c = fgetc(email_data) : getting the first char of the next line to check whether header value continues
+        if (current_buff_length == EOF || (c = fgetc(email_data)) == EOF)
+            break;
+
+        // checks header value continuation
+        if (c == ' ') {
+            remove_whitespaces(email_data);
+            ++current_buff_length;
+        } else {
+            ungetc(c, email_data);
+            break;
+        }
+    }
+    return current_buff_length;
+}
 
 int lowercase_strncmp(const char *s, const char *t, int n) {
     int i;
@@ -140,28 +177,55 @@ lexem_t header2lexem(const char given_header_name[]) {
     static struct {
         char *header_name;
         lexem_t lexem;
-    } tag_names[] = {{"from", L_FROM_TAG},
-                     {"to", L_TO_TAG},
-                     {"date", L_DATE_TAG},
-                     {"content-type", L_CONTENT_TYPE_TAG},
-                     {"received", L_RECEIVED}};
+    } tag_names[] = {{"from", L_FROM_HEADER},
+                     {"to", L_TO_HEADER},
+                     {"date", L_DATE_HEADER},
+                     {"content-type", L_CONTENT_TYPE_HEADER}};
     static int tag_names_length = sizeof (tag_names) / sizeof (tag_names[0]);
 
     int input_length = strlen(given_header_name);
-
     for (int i = 0; i < tag_names_length; ++i)
         if (lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
             return tag_names[i].lexem;
-    return L_OTHER_TAG;
+    return L_OTHER_HEADER;
 }
 
+typedef void (*processing_t)(const char value[]);
 
-//static rule_t transition_table[S_COUNT][L_COUNT] =
-// //                  L_HNAME            L_COLON         L_HVALUE
-///* S_BEGIN  */ {{{S_HNAME, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
-///* S_HNAME  */  {{S_BEGIN, NULL},  {S_HVALUE, NULL}, {S_BEGIN, NULL}},
-///* S_HVALUE */  {{S_BEGIN, NULL},  {S_BEGIN, NULL },  {S_BEGIN, NULL}},
-///* S_END    */  {{S_END,   NULL},  {S_END, NULL   },  {S_END, NULL}}};
+typedef struct {
+    state_t next_state;
+    int skip_value;
+    processing_t how_to_process_value;
+} rule_t;
+
+struct {
+    char *from;
+    char *to;
+    char *date;
+    int n_parts;
+} results;
+
+
+int save_from_value(char value[]) {
+    results.from = value;
+    return 0;
+}
+
+int save_to_value(char value[]) {
+    results.to = value;
+    return 0;
+}
+
+//L_TO_HEADER,
+//L_CONTENT_TYPE_HEADER,
+//L_DATE_HEADER,
+//L_COUNT
+static rule_t transition_table[S_COUNT][L_COUNT] =
+ //               L_OTHER_HEADER                  L_FROM_HEADER                 L_HVALUE
+/* S_BEGIN  */ {{{S_BEGIN, 1},  {S_BEGIN, get_header_value},  {S_BEGIN, get_header_value}},
+/* S_HNAME  */  {{S_BEGIN, NULL},               {S_HVALUE, NULL}, {S_BEGIN, NULL}},
+/* S_HVALUE */  {{S_BEGIN, NULL},               {S_BEGIN, NULL },  {S_BEGIN, NULL}},
+/* S_END    */  {{S_END,   NULL},               {S_END, NULL   },  {S_END, NULL}}};
 
 
 void test_lower_strncmp() {
@@ -184,30 +248,33 @@ void test_lower_strncmp() {
         printf("%d\n", test_array[i].res == lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
 }
 
-
-
 int main(int argc, const char **argv) {
     if (argc != 2) {
         return -1;
     }
 
-    char str_lexem[BUFFSIZE];
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
 
+    char str_buffer[BUFFSIZE];
+    
+    state_t current_state = S_BEGIN;
     int read_status;
+    //        printf("%d <hSTART>%s<hEND>\n", read_status, str_lexem);
+    //        printf("%d <vSTART>%s<vEND>\n", read_status, str_buffer);
+
     while (1) {
-        read_status = get_header_name(email_data, str_lexem, BUFFSIZE);
-        lexem_t lexem = header2lexem(str_lexem);
-        
-        printf("%d <hSTART>%s<hEND>\n", read_status, str_lexem);
+        read_status = get_header_name(email_data, str_buffer, BUFFSIZE);
+        if (read_status == EOF)
+            break;
+        lexem_t lexem = header2lexem(str_buffer);
+        rule_t next_state = transition_table[current_state][lexem];
+
+        read_status = (next_state.skip_value) ? skip_header_value(email_data)
+                                              : get_header_value(email_data, str_buffer, BUFFSIZE);
         if (read_status == EOF)
             break;
 
-        read_status = get_header_value(email_data, str_lexem, BUFFSIZE);
-        printf("%d <vSTART>%s<vEND>\n", read_status, str_lexem);
-        if (read_status == EOF)
-            break;
     }
     fclose(email_data);
     return 0;
