@@ -43,9 +43,7 @@ int next_line_checker(FILE *datafile, char *next_char) {
         return FILE_OK;
     }
 
-    if ((c = fgetc(datafile)) == EOF)
-        return FILE_EOF;
-    else if (c != opposite_c)
+    if ((c = fgetc(datafile)) != opposite_c)
         ungetc(c, datafile);
     return FILE_BLOCK_TERM;
 }
@@ -102,7 +100,6 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
     while (1) {
         current_buff_length = read_in_buffer(email_data, header_value_buf, current_buff_length, limit,
                                              next_line_checker);
-        // fgetc also skips line termination char
         // c = fgetc(email_data) : getting the first char of the next line to check whether header value continues
         if (current_buff_length == EOF || current_buff_length == limit - 1 || (c = fgetc(email_data)) == EOF)
             break;
@@ -117,7 +114,7 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
             break;
         }
     }
-    return (c == EOF && !current_buff_length) ? c : current_buff_length;
+    return current_buff_length;
 }
 
 typedef enum {
