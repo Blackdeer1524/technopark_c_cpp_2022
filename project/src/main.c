@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-
+#include <ctype.h>
 
 #define BUFFSIZE 500
 
@@ -120,6 +120,26 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
     return (c == EOF && !current_buff_length) ? c : current_buff_length;
 }
 
+typedef enum {
+    L_RANDOM_TAG,
+    L_FROM_TAG,
+    L_TO_T,
+    L_CONTENT_TYPE_TAG,
+    L_DATE_TAG,
+    L_COUNT
+} lexem_t;
+
+
+//int lowercase_strncmp(const char *s, const char *t, int n) {
+//    for (int i = 0; i < n && *s && *t && *s == *t; ++i, ++s, ++t) {
+//        ;
+//    }
+//    if (*s == *t )
+//}
+//
+//lexem_t header_parser(const char given_lexem[]) {
+//    if (strncmp(tolow given_lexem, ""));
+//}
 
 //static rule_t transition_table[S_COUNT][L_COUNT] =
 // //                  L_HNAME            L_COLON         L_HVALUE
