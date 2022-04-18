@@ -118,25 +118,43 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
 }
 
 typedef enum {
-    L_RANDOM_TAG,
+    L_OTHER_TAG,
     L_FROM_TAG,
-    L_TO_T,
+    L_TO_TAG,
     L_CONTENT_TYPE_TAG,
     L_DATE_TAG,
+    L_RECEIVED,
     L_COUNT
 } lexem_t;
 
+int lowercase_strncmp(const char *s, const char *t, int n) {
+    int i;
+    for (i=0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s)
+        ;
+    if (i == n)
+        return 1;
+    return 0;
+}
 
-//int lowercase_strncmp(const char *s, const char *t, int n) {
-//    for (int i = 0; i < n && *s && *t && *s == *t; ++i, ++s, ++t) {
-//        ;
-//    }
-//    if (*s == *t )
-//}
-//
-//lexem_t header_parser(const char given_lexem[]) {
-//    if (strncmp(tolow given_lexem, ""));
-//}
+lexem_t header2lexem(const char given_header_name[]) {
+    static struct {
+        char *header_name;
+        lexem_t lexem;
+    } tag_names[] = {{"from", L_FROM_TAG},
+                     {"to", L_TO_TAG},
+                     {"date", L_DATE_TAG},
+                     {"content-type", L_CONTENT_TYPE_TAG},
+                     {"received", L_RECEIVED}};
+    static int tag_names_length = sizeof (tag_names) / sizeof (tag_names[0]);
+
+    int input_length = strlen(given_header_name);
+
+    for (int i = 0; i < tag_names_length; ++i)
+        if (lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
+            return tag_names[i].lexem;
+    return L_OTHER_TAG;
+}
+
 
 //static rule_t transition_table[S_COUNT][L_COUNT] =
 // //                  L_HNAME            L_COLON         L_HVALUE
@@ -146,27 +164,48 @@ typedef enum {
 ///* S_END    */  {{S_END,   NULL},  {S_END, NULL   },  {S_END, NULL}}};
 
 
+void test_lower_strncmp() {
+    static struct {
+        char *a;
+        char *b;
+        int n;
+        int res;
+    } test_array[] = {{"Test", "Test", 4, 1},
+                      {"Test", "tEst", 4, 1},
+                      {"Ttew", "tEst", 4, 0},
+                      {"", "wetw", 4, 0},
+                      {"", "wetw", 0, 1},
+                      {"", "", 0, 1},
+                      {"Wwww", "ww", 1, 1},
+                      {"wetw", "wett", 5, 0},
+                      {"wEtw", "wett", 3, 1}};
+
+    for (int i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
+        printf("%d\n", test_array[i].res == lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
+}
+
+
 
 int main(int argc, const char **argv) {
     if (argc != 2) {
         return -1;
     }
 
-    char current_lexem[BUFFSIZE];
-
+    char str_lexem[BUFFSIZE];
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
 
     int read_status;
     while (1) {
-        read_status = get_header_name(email_data, current_lexem, BUFFSIZE);
-
-        printf("%d <hSTART>%s<hEND>\n", read_status, current_lexem);
+        read_status = get_header_name(email_data, str_lexem, BUFFSIZE);
+        lexem_t lexem = header2lexem(str_lexem);
+        
+        printf("%d <hSTART>%s<hEND>\n", read_status, str_lexem);
         if (read_status == EOF)
             break;
 
-        read_status = get_header_value(email_data, current_lexem, BUFFSIZE);
-        printf("%d <vSTART>%s<vEND>\n", read_status, current_lexem);
+        read_status = get_header_value(email_data, str_lexem, BUFFSIZE);
+        printf("%d <vSTART>%s<vEND>\n", read_status, str_lexem);
         if (read_status == EOF)
             break;
     }
