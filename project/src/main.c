@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define BUFFSIZE 512
 
@@ -66,16 +67,8 @@ typedef enum {
     L_FROM_HEADER,
     L_TO_HEADER,
     L_CONTENT_TYPE_HEADER,
-    L_DATE_HEADER,
-    L_COUNT
-} lexem_t;
-
-typedef enum {
-    S_BEGIN,
-    S_COUNT
-} state_t;
-
-typedef void callback(const char []);
+    L_DATE_HEADER
+} header_t;
 
 void remove_whitespaces(FILE *email_data) {
     int c;
@@ -164,8 +157,8 @@ int skip_header_value(FILE *email_data) {
     return current_buff_length;
 }
 
-int lowercase_strncmp(const char *s, const char *t, int n) {
-    int i;
+int lowercase_strncmp(const char *s, const char *t, unsigned long n) {
+    unsigned long i;
     for (i=0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s)
         ;
     if (i == n)
@@ -173,59 +166,29 @@ int lowercase_strncmp(const char *s, const char *t, int n) {
     return 0;
 }
 
-lexem_t header2lexem(const char given_header_name[]) {
+header_t header2lexem(const char given_header_name[]) {
     static struct {
         char *header_name;
-        lexem_t lexem;
+        header_t header;
     } tag_names[] = {{"from", L_FROM_HEADER},
                      {"to", L_TO_HEADER},
                      {"date", L_DATE_HEADER},
                      {"content-type", L_CONTENT_TYPE_HEADER}};
     static int tag_names_length = sizeof (tag_names) / sizeof (tag_names[0]);
 
-    int input_length = strlen(given_header_name);
+    unsigned long input_length = strlen(given_header_name);
     for (int i = 0; i < tag_names_length; ++i)
         if (lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
-            return tag_names[i].lexem;
+            return tag_names[i].header;
     return L_OTHER_HEADER;
 }
 
-typedef void (*processing_t)(const char value[]);
-
 typedef struct {
-    state_t next_state;
-    int skip_value;
-    processing_t how_to_process_value;
-} rule_t;
-
-struct {
     char *from;
     char *to;
     char *date;
     int n_parts;
-} results;
-
-
-int save_from_value(char value[]) {
-    results.from = value;
-    return 0;
-}
-
-int save_to_value(char value[]) {
-    results.to = value;
-    return 0;
-}
-
-//L_TO_HEADER,
-//L_CONTENT_TYPE_HEADER,
-//L_DATE_HEADER,
-//L_COUNT
-static rule_t transition_table[S_COUNT][L_COUNT] =
- //               L_OTHER_HEADER                  L_FROM_HEADER                 L_HVALUE
-/* S_BEGIN  */ {{{S_BEGIN, 1},  {S_BEGIN, get_header_value},  {S_BEGIN, get_header_value}},
-/* S_HNAME  */  {{S_BEGIN, NULL},               {S_HVALUE, NULL}, {S_BEGIN, NULL}},
-/* S_HVALUE */  {{S_BEGIN, NULL},               {S_BEGIN, NULL },  {S_BEGIN, NULL}},
-/* S_END    */  {{S_END,   NULL},               {S_END, NULL   },  {S_END, NULL}}};
+} Results;
 
 
 void test_lower_strncmp() {
@@ -244,38 +207,108 @@ void test_lower_strncmp() {
                       {"wetw", "wett", 5, 0},
                       {"wEtw", "wett", 3, 1}};
 
-    for (int i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
+    for (size_t i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
         printf("%d\n", test_array[i].res == lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
+}
+
+void free_res(Results res) {
+    free(res.date);
+    free(res.from);
+    free(res.to);
 }
 
 int main(int argc, const char **argv) {
     if (argc != 2) {
         return -1;
     }
-
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
 
     char str_buffer[BUFFSIZE];
-    
-    state_t current_state = S_BEGIN;
+
+    Results res = {NULL, NULL, NULL, 0};
+
     int read_status;
-    //        printf("%d <hSTART>%s<hEND>\n", read_status, str_lexem);
-    //        printf("%d <vSTART>%s<vEND>\n", read_status, str_buffer);
+    char *boundary = NULL;
+    while (1) {
+        // trying to read header
+        read_status = get_header_name(email_data, str_buffer, BUFFSIZE);
+        if (read_status == EOF || read_status == 0)
+            break;
+
+        header_t cur_header = header2lexem(str_buffer);
+        if (cur_header == L_OTHER_HEADER) {
+            skip_header_value(email_data);
+            continue;
+        }
+
+        read_status = get_header_value(email_data, str_buffer, BUFFSIZE);
+        if (read_status == EOF)
+            break;
+
+        switch (cur_header) {
+            case L_FROM_HEADER:
+                free(res.from);
+                res.from = calloc(sizeof(char), read_status);
+                strncpy(res.from, str_buffer, read_status);
+                break;
+            case L_TO_HEADER:
+                free(res.to);
+                res.to = calloc(sizeof(char), read_status);
+                strncpy(res.to, str_buffer, read_status);
+                break;
+            case L_DATE_HEADER:
+                free(res.date);
+                res.date = calloc(sizeof(char), read_status);
+                strncpy(res.date, str_buffer, read_status);
+                break;
+            case L_CONTENT_TYPE_HEADER: {
+                    char *multipart_start;
+                    if ((multipart_start = strstr(str_buffer, "multipart"))) {
+                        char *part_boundary = strstr(multipart_start, "boundary=") + 9;
+                        if (*part_boundary == '\"')
+                            ++part_boundary;
+                        int boundary_length;
+                        for (boundary_length = 0; *(part_boundary+boundary_length) != '"' &&
+                                                  *(part_boundary+boundary_length) != '\0' &&
+                                                  *(part_boundary+boundary_length) != ';'; ++boundary_length)
+                            ;
+                        free(boundary);
+                        boundary = calloc(boundary_length, sizeof(char));
+                        strncpy(boundary, part_boundary, boundary_length);
+                    }
+                }
+                break;
+            default: break;
+        }
+    }
+    int c;
+    while ((c = fgetc(email_data)) != EOF && isspace(c))
+        ;
+    if (c == EOF){
+        printf("%s|%s|%s|%d", res.from, res.to, res.date, 0);
+        free_res(res);
+        return 0;
+    }
+    if (!boundary) {
+        printf("%s|%s|%s|%d", res.from, res.to, res.date, 1);
+        free_res(res);
+        return 0;
+    }
+    ungetc(c, email_data);
 
     while (1) {
-        read_status = get_header_name(email_data, str_buffer, BUFFSIZE);
-        if (read_status == EOF)
-            break;
-        lexem_t lexem = header2lexem(str_buffer);
-        rule_t next_state = transition_table[current_state][lexem];
-
-        read_status = (next_state.skip_value) ? skip_header_value(email_data)
-                                              : get_header_value(email_data, str_buffer, BUFFSIZE);
+        read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE, next_line_checker);
         if (read_status == EOF)
             break;
 
+        if (strstr(str_buffer, boundary))
+            ++res.n_parts;
     }
+
+    printf("%s|%s|%s|%d", res.from, res.to, res.date, (res.n_parts+1) / 2);
+    free(boundary);
+    free_res(res);
     fclose(email_data);
     return 0;
 }
