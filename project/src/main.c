@@ -33,13 +33,13 @@ int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
     int opposite_c;
 
-    if (c == EOF)
+    if (c == EOF) {
         return FILE_EOF;
-    else if (c == '\n')
+    } else if (c == '\n') {
         opposite_c = '\r';
-    else if (c == '\r')
+    } else if (c == '\r') {
         opposite_c = '\n';
-    else {
+    } else {
         *next_char = c;
         return FILE_OK;
     }
@@ -73,7 +73,7 @@ typedef enum {
 void remove_whitespaces(FILE *email_data) {
     int c;
     while ((c = fgetc(email_data)) == ' ')
-        ;
+    {}
     ungetc(c, email_data);
 }
 
@@ -84,7 +84,7 @@ int read_in_buffer(FILE *email_data,
                    int limit,
                    block_termination_checker is_stop_char) {
     int i, block_terminator_status = FILE_OK;
-    char c;
+    char c = '\0';
     for (i = starting_position;
          i < limit - 1 && (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK;
          ++i)
@@ -104,13 +104,16 @@ int get_header_name(FILE *email_data, char header_value_buf[], int limit) {
 }
 
 int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
-    int c, current_buff_length = 0;
+    int current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
+        int c;
         current_buff_length = read_in_buffer(email_data, header_value_buf, current_buff_length, limit,
                                              next_line_checker);
-        // c = fgetc(email_data) : getting the first char of the next line to check whether header value continues
-        if (current_buff_length == EOF || current_buff_length == limit - 1 || (c = fgetc(email_data)) == EOF)
+        // c = fgetc(email_data) : getting the first char of
+        // the next line to check whether header value continues
+        if (current_buff_length == EOF || current_buff_length == limit - 1 ||
+           (c = fgetc(email_data)) == EOF)
             break;
 
         // checks header value continuation
@@ -130,18 +133,20 @@ int skip_read_in_buffer(FILE *email_data, block_termination_checker is_stop_char
     int i, block_terminator_status = FILE_OK;
     char c;
     for (i = 0; (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK; ++i)
-        ;
+    {}
     if (block_terminator_status == FILE_EOF && i == 0)
         return EOF;
     return i;
 }
 
 int skip_header_value(FILE *email_data) {
-    int c, current_buff_length = 0;
+    int current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
+        int c;
         current_buff_length = skip_read_in_buffer(email_data, next_line_checker);
-        // c = fgetc(email_data) : getting the first char of the next line to check whether header value continues
+        // c = fgetc(email_data) : getting the first char of the next
+        // line to check whether header value continues
         if (current_buff_length == EOF || (c = fgetc(email_data)) == EOF)
             break;
 
@@ -160,7 +165,7 @@ int skip_header_value(FILE *email_data) {
 int lowercase_strncmp(const char *s, const char *t, unsigned long n) {
     unsigned long i;
     for (i=0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s)
-        ;
+    {}
     if (i == n)
         return 1;
     return 0;
@@ -191,30 +196,55 @@ typedef struct {
 } Results;
 
 
-void test_lower_strncmp() {
-    static struct {
-        char *a;
-        char *b;
-        int n;
-        int res;
-    } test_array[] = {{"Test", "Test", 4, 1},
-                      {"Test", "tEst", 4, 1},
-                      {"Ttew", "tEst", 4, 0},
-                      {"", "wetw", 4, 0},
-                      {"", "wetw", 0, 1},
-                      {"", "", 0, 1},
-                      {"Wwww", "ww", 1, 1},
-                      {"wetw", "wett", 5, 0},
-                      {"wEtw", "wett", 3, 1}};
-
-    for (size_t i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
-        printf("%d\n", test_array[i].res == lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
-}
+//  void test_lower_strncmp() {
+//    static struct {
+//        char *a;
+//        char *b;
+//        int n;
+//        int res;
+//    } test_array[] = {{"Test", "Test", 4, 1},
+//                      {"Test", "tEst", 4, 1},
+//                      {"Ttew", "tEst", 4, 0},
+//                      {"", "wetw", 4, 0},
+//                      {"", "wetw", 0, 1},
+//                      {"", "", 0, 1},
+//                      {"Wwww", "ww", 1, 1},
+//                      {"wetw", "wett", 5, 0},
+//                      {"wEtw", "wett", 3, 1}};
+//
+//    for (size_t i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
+//        printf("%d\n", test_array[i].res ==
+//                       lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
+//  }
 
 void free_res(Results res) {
     free(res.date);
     free(res.from);
     free(res.to);
+}
+
+//  void manual_printf(const char *s) {
+//      for (; *s; ++s)
+//          putchar(*s);
+//  }
+
+void display_res(Results res) {
+    if (res.from)
+        printf("%s|", res.from);
+    else
+        printf("|");
+
+    if (res.to)
+        printf("%s|", res.to);
+    else
+        printf("|");
+
+    if (res.date)
+        printf("%s|", res.date);
+    else
+        printf("|");
+
+    printf("%d", res.n_parts);
 }
 
 int main(int argc, const char **argv) {
@@ -263,37 +293,40 @@ int main(int argc, const char **argv) {
                 strncpy(res.date, str_buffer, read_status);
                 break;
             case L_CONTENT_TYPE_HEADER: {
-                    char *multipart_start;
-                    if ((multipart_start = strstr(str_buffer, "multipart"))) {
-                        char *part_boundary = strstr(multipart_start, "boundary=") + 9;
-                        if (*part_boundary == '\"')
-                            ++part_boundary;
-                        int boundary_length;
-                        for (boundary_length = 0; *(part_boundary+boundary_length) != '"' &&
-                                                  *(part_boundary+boundary_length) != '\0' &&
-                                                  *(part_boundary+boundary_length) != ';'; ++boundary_length)
-                            ;
-                        free(boundary);
+                char *multipart_start;
+                if ((multipart_start = strstr(str_buffer, "multipart"))) {
+                    char *part_boundary = strstr(multipart_start, "boundary=") + 9;
+                    if (*part_boundary == '\"')
+                        ++part_boundary;
+                    int boundary_length;
+                    for (boundary_length = 0; *(part_boundary+boundary_length) != '"' &&
+                                              *(part_boundary+boundary_length) != '\0' &&
+                                              *(part_boundary+boundary_length) != ';'; ++boundary_length)
+                    {}
+                    free(boundary);
+                    if (boundary_length) {
                         boundary = calloc(boundary_length, sizeof(char));
                         strncpy(boundary, part_boundary, boundary_length);
+                    } else {
+                        boundary = NULL;
                     }
                 }
+            }
                 break;
             default: break;
         }
     }
     int c;
     while ((c = fgetc(email_data)) != EOF && isspace(c))
-        ;
-    if (c == EOF){
-        printf("%s|%s|%s|%d", res.from, res.to, res.date, 0);
-        free_res(res);
-        return 0;
+    {}
+
+    if (c == EOF) {
+        res.n_parts = 0;
+        goto free_space;
     }
     if (!boundary) {
-        printf("%s|%s|%s|%d", res.from, res.to, res.date, 1);
-        free_res(res);
-        return 0;
+        res.n_parts = 1;
+        goto free_space;
     }
     ungetc(c, email_data);
 
@@ -306,9 +339,11 @@ int main(int argc, const char **argv) {
             ++res.n_parts;
     }
 
-    printf("%s|%s|%s|%d", res.from, res.to, res.date, (res.n_parts+1) / 2);
-    free(boundary);
-    free_res(res);
-    fclose(email_data);
+    res.n_parts = (res.n_parts+1) / 2;
+    free_space:
+        display_res(res);
+        free(boundary);
+        free_res(res);
+        fclose(email_data);
     return 0;
 }
