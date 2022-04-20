@@ -27,7 +27,7 @@
 #define FILE_EOF (-1)
 #define FILE_OK 0
 #define FILE_BLOCK_TERM 1
-
+#define FILE_WRONG_TERM 2
 
 int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
@@ -51,8 +51,11 @@ int next_line_checker(FILE *datafile, char *next_char) {
 
 int header_name_end_checker(FILE *datafile, char *next_char) {
     int status = next_line_checker(datafile, next_char);
-    if (status != FILE_OK)
-        return status;
+    if (status == FILE_BLOCK_TERM)
+        return FILE_WRONG_TERM;
+
+    if (status == FILE_EOF)
+        return FILE_EOF;
 
     if (*next_char == ':')
         return FILE_BLOCK_TERM;
@@ -82,38 +85,40 @@ int read_in_buffer(FILE *email_data,
                    char saving_buffer[],
                    int starting_position,
                    int limit,
-                   block_termination_checker is_stop_char) {
-    int i, block_terminator_status = FILE_OK;
+                   block_termination_checker is_stop_char,
+                   int *block_terminator_status) {
+    *block_terminator_status = FILE_OK;
+    int i;
     char c = '\0';
     for (i = starting_position;
-         i < limit - 1 && (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK;
+         i < limit - 1 && (*block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK;
          ++i)
         saving_buffer[i] = c;
     saving_buffer[i] = '\0';
 
-    if (block_terminator_status == FILE_EOF && i == starting_position)
+    if (*block_terminator_status == FILE_EOF && i == starting_position)
         return EOF;
-
     for (int j = i - 1; j >= starting_position && saving_buffer[j] == ' '; --j, --i)
         saving_buffer[j] = '\0';
     return i;
 }
 
-int get_header_name(FILE *email_data, char header_value_buf[], int limit) {
-    return read_in_buffer(email_data, header_value_buf,  0, limit, header_name_end_checker);
+int get_header_name(FILE *email_data, char header_value_buf[], int limit, int *block_terminator_status) {
+    return read_in_buffer(email_data, header_value_buf,  0, limit, header_name_end_checker, block_terminator_status);
 }
 
-int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
+int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *block_terminator_status) {
     int current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
         int c;
+        *block_terminator_status = FILE_OK;
         current_buff_length = read_in_buffer(email_data, header_value_buf, current_buff_length, limit,
-                                             next_line_checker);
+                                             next_line_checker, block_terminator_status);
         // c = fgetc(email_data) : getting the first char of
         // the next line to check whether header value continues
-        if (current_buff_length == EOF || current_buff_length == limit - 1 ||
-           (c = fgetc(email_data)) == EOF)
+        if (*block_terminator_status == FILE_WRONG_TERM || current_buff_length == EOF ||
+            current_buff_length == limit - 1 || (c = fgetc(email_data)) == EOF)
             break;
 
         // checks header value continuation
@@ -129,25 +134,29 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit) {
     return current_buff_length;
 }
 
-int skip_read_in_buffer(FILE *email_data, block_termination_checker is_stop_char) {
-    int i, block_terminator_status = FILE_OK;
+int skip_read_in_buffer(FILE *email_data, block_termination_checker is_stop_char, int *block_terminator_status) {
+    int i;
+    *block_terminator_status = FILE_OK;
     char c;
-    for (i = 0; (block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK; ++i)
+    for (i = 0; (*block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK; ++i)
     {}
-    if (block_terminator_status == FILE_EOF && i == 0)
+
+    if (*block_terminator_status == FILE_EOF && i == 0)
         return EOF;
     return i;
 }
 
-int skip_header_value(FILE *email_data) {
+int skip_header_value(FILE *email_data, int *block_terminator_status) {
     int current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
         int c;
-        current_buff_length = skip_read_in_buffer(email_data, next_line_checker);
+        *block_terminator_status = FILE_OK;
+        current_buff_length = skip_read_in_buffer(email_data, next_line_checker, block_terminator_status);
         // c = fgetc(email_data) : getting the first char of the next
         // line to check whether header value continues
-        if (current_buff_length == EOF || (c = fgetc(email_data)) == EOF)
+        if (*block_terminator_status == FILE_WRONG_TERM || current_buff_length == EOF
+            || (c = fgetc(email_data)) == EOF)
             break;
 
         // checks header value continuation
@@ -253,26 +262,32 @@ int main(int argc, const char **argv) {
     }
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
-
-    char str_buffer[BUFFSIZE];
+    if (!email_data)
+        return -1;
 
     Results res = {NULL, NULL, NULL, 0};
-
     int read_status;
     char *boundary = NULL;
+    int block_terminator_status;
+    char str_buffer[BUFFSIZE];
+
     while (1) {
         // trying to read header
-        read_status = get_header_name(email_data, str_buffer, BUFFSIZE);
+        read_status = get_header_name(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
+        if (block_terminator_status == FILE_WRONG_TERM)
+            continue;
         if (read_status == EOF || read_status == 0)
             break;
 
         header_t cur_header = header2lexem(str_buffer);
         if (cur_header == L_OTHER_HEADER) {
-            skip_header_value(email_data);
+            skip_header_value(email_data, &block_terminator_status);
             continue;
         }
 
-        read_status = get_header_value(email_data, str_buffer, BUFFSIZE);
+        read_status = get_header_value(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
+        if (block_terminator_status == FILE_WRONG_TERM)
+            continue;
         if (read_status == EOF)
             break;
 
@@ -331,7 +346,11 @@ int main(int argc, const char **argv) {
     ungetc(c, email_data);
 
     while (1) {
-        read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE, next_line_checker);
+        read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
+                                     next_line_checker, &block_terminator_status);
+        if (block_terminator_status == FILE_WRONG_TERM)
+            continue;
+
         if (read_status == EOF)
             break;
 
