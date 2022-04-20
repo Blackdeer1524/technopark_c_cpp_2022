@@ -238,21 +238,9 @@ void free_res(Results res) {
 //  }
 
 void display_res(Results res) {
-    if (res.from)
-        printf("%s|", res.from);
-    else
-        printf("|");
-
-    if (res.to)
-        printf("%s|", res.to);
-    else
-        printf("|");
-
-    if (res.date)
-        printf("%s|", res.date);
-    else
-        printf("|");
-
+    (res.from) ? printf("%s|", res.from) : printf("|");
+    (res.to)   ? printf("%s|", res.to)   : printf("|");
+    (res.date) ? printf("%s|", res.date) : printf("|");
     printf("%d", res.n_parts);
 }
 
