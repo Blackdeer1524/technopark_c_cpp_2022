@@ -262,9 +262,12 @@ int main(int argc, const char **argv) {
     while (1) {
         // trying to read header
         read_status = get_header_name(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
-        if (block_terminator_status == FILE_WRONG_TERM)
+        if (block_terminator_status == FILE_WRONG_TERM) {
+            if (!read_status)
+                break;
             continue;
-        if (read_status == EOF || read_status == 0)
+        }
+        if (read_status == EOF)
             break;
 
         header_t cur_header = header2lexem(str_buffer);
@@ -348,9 +351,9 @@ int main(int argc, const char **argv) {
 
     res.n_parts = (res.n_parts+1) / 2;
     free_space:
-        display_res(res);
-        free(boundary);
-        free_res(res);
-        fclose(email_data);
+    display_res(res);
+    free(boundary);
+    free_res(res);
+    fclose(email_data);
     return 0;
 }
