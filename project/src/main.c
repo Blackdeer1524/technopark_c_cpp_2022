@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define BUFFSIZE 512
+#define BUFFSIZE 2400000
 
 // <От кого письмо>|<Кому письмо>|<Время получения письма>|<Количество партов письма>
 /*
@@ -75,7 +75,7 @@ typedef enum {
 
 void remove_whitespaces(FILE *email_data) {
     int c;
-    while ((c = fgetc(email_data)) == ' ')
+    while (isblank(c = fgetc(email_data)))
     {}
     ungetc(c, email_data);
 }
@@ -98,7 +98,7 @@ int read_in_buffer(FILE *email_data,
 
     if (*block_terminator_status == FILE_EOF && i == starting_position)
         return EOF;
-    for (int j = i - 1; j >= starting_position && saving_buffer[j] == ' '; --j, --i)
+    for (int j = i - 1; j >= starting_position && isblank(saving_buffer[j]); --j, --i)
         saving_buffer[j] = '\0';
     return i;
 }
@@ -122,7 +122,7 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *
             break;
 
         // checks header value continuation
-        if (c == ' ') {
+        if (isblank(c)) {
             remove_whitespaces(email_data);
             header_value_buf[current_buff_length] = ' ';
             ++current_buff_length;
@@ -160,7 +160,7 @@ int skip_header_value(FILE *email_data, int *block_terminator_status) {
             break;
 
         // checks header value continuation
-        if (c == ' ') {
+        if (isblank(c)) {
             remove_whitespaces(email_data);
             ++current_buff_length;
         } else {
@@ -232,16 +232,47 @@ void free_res(Results res) {
     free(res.to);
 }
 
+char* stristr(const char* haystack, const char* needle) {
+    do {
+
+   const char* h = haystack;
+        const char* n = needle;
+        while (tolower((unsigned char) *h) == tolower((unsigned char ) *n) && *n) {
+            h++;
+            n++;
+        }
+        if (!*n) {
+            return (char *) haystack;
+        }
+    } while (*haystack++);
+    return NULL;
+}
+
+
 //  void manual_printf(const char *s) {
 //      for (; *s; ++s)
 //          putchar(*s);
 //  }
 
 void display_res(Results res) {
-    (res.from) ? printf("%s|", res.from) : printf("|");
-    (res.to)   ? printf("%s|", res.to)   : printf("|");
-    (res.date) ? printf("%s|", res.date) : printf("|");
-    printf("%d", res.n_parts);
+    char test[BUFFSIZE];
+    if (!res.from)
+        res.from = "";
+    if (!res.to)
+        res.to = "";
+    if (!res.date)
+        res.date = "";
+    sprintf(test, "%s|%s|%s|%d", res.from, res.to, res.date, res.n_parts);
+    puts(test);
+}
+
+int rewrite_charptr(char **dest, const char *src, size_t n) {
+    if (!dest || !src)
+        return 1;
+    free(*dest);
+    *dest = calloc(sizeof(char), n);
+    strncpy(*dest, src, n);
+    return 0;
 }
 
 int main(int argc, const char **argv) {
@@ -262,46 +293,63 @@ int main(int argc, const char **argv) {
     while (1) {
         // trying to read header
         read_status = get_header_name(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
-        if (block_terminator_status == FILE_WRONG_TERM) {
-            if (!read_status)
+        if (read_status == EOF)
+            break;
+        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+            // skip header and its value if buffer overflow occurs
+            skip_header_value(email_data, &block_terminator_status);
+            continue;
+        } else if (block_terminator_status == FILE_WRONG_TERM) {
+            if (!read_status)  // finds a start of a body part
                 break;
             continue;
         }
-        if (read_status == EOF)
-            break;
 
+        // differentiate one header from the other
         header_t cur_header = header2lexem(str_buffer);
         if (cur_header == L_OTHER_HEADER) {
             skip_header_value(email_data, &block_terminator_status);
             continue;
         }
 
+        // trying to read header value
         read_status = get_header_value(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
-        if (block_terminator_status == FILE_WRONG_TERM)
-            continue;
         if (read_status == EOF)
             break;
+        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+            skip_header_value(email_data, &block_terminator_status);
+            continue;
+        } else if (block_terminator_status == FILE_WRONG_TERM) {
+            continue;
+        }
 
         switch (cur_header) {
             case L_FROM_HEADER:
-                free(res.from);
-                res.from = calloc(sizeof(char), read_status);
-                strncpy(res.from, str_buffer, read_status);
+                rewrite_charptr(&res.from, str_buffer, read_status + 1);
                 break;
             case L_TO_HEADER:
-                free(res.to);
-                res.to = calloc(sizeof(char), read_status);
-                strncpy(res.to, str_buffer, read_status);
+                rewrite_charptr(&res.to, str_buffer, read_status + 1);
                 break;
             case L_DATE_HEADER:
-                free(res.date);
-                res.date = calloc(sizeof(char), read_status);
-                strncpy(res.date, str_buffer, read_status);
+                rewrite_charptr(&res.date, str_buffer, read_status + 1);
                 break;
             case L_CONTENT_TYPE_HEADER: {
                 char *multipart_start;
-                if ((multipart_start = strstr(str_buffer, "multipart"))) {
-                    char *part_boundary = strstr(multipart_start, "boundary=") + 9;
+                if ((multipart_start = stristr(str_buffer, "multipart"))) {
+                    char *part_boundary = stristr(multipart_start, "boundary");
+                    // checks whether found boundary tag is precisely "boundary"
+                    if (ispunct(*(part_boundary - 1)) || isblank(*(part_boundary - 1)))
+                        part_boundary += 8;
+                    else
+                        continue;
+
+                    // parses <boundary = blablabla>
+                    while (isblank(*part_boundary))
+                        ++part_boundary;
+                    ++part_boundary;
+                    while (isblank(*part_boundary))
+                        ++part_boundary;
+
                     if (*part_boundary == '\"')
                         ++part_boundary;
                     int boundary_length;
@@ -309,10 +357,9 @@ int main(int argc, const char **argv) {
                                               *(part_boundary+boundary_length) != '\0' &&
                                               *(part_boundary+boundary_length) != ';'; ++boundary_length)
                     {}
-                    free(boundary);
                     if (boundary_length) {
-                        boundary = calloc(boundary_length, sizeof(char));
-                        strncpy(boundary, part_boundary, boundary_length);
+                        rewrite_charptr(&boundary, part_boundary, boundary_length + 1);
+                        boundary[boundary_length] = '\0';
                     } else {
                         boundary = NULL;
                     }
@@ -336,20 +383,27 @@ int main(int argc, const char **argv) {
     }
     ungetc(c, email_data);
 
+    res.n_parts = 0;
     while (1) {
         read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
                                      next_line_checker, &block_terminator_status);
-        if (block_terminator_status == FILE_WRONG_TERM)
-            continue;
-
         if (read_status == EOF)
             break;
+        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+            skip_header_value(email_data, &block_terminator_status);
+            continue;
+        } else if (block_terminator_status == FILE_WRONG_TERM) {
+            continue;
+        }
 
-        if (strstr(str_buffer, boundary))
+        if (stristr(str_buffer, boundary))
             ++res.n_parts;
     }
 
-    res.n_parts = (res.n_parts+1) / 2;
+    res.n_parts = res.n_parts - 1;
+    if (!res.n_parts)
+        res.n_parts = 1;
+
     free_space:
     display_res(res);
     free(boundary);
