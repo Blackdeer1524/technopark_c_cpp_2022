@@ -369,21 +369,33 @@ int main(int argc, const char **argv) {
             default: break;
         }
     }
-    int c;
-    while ((c = fgetc(email_data)) != EOF && isspace(c))
-    {}
-
-    if (c == EOF) {
-        res.n_parts = 0;
-        goto free_space;
-    }
     if (!boundary) {
         res.n_parts = 1;
         goto free_space;
     }
+    res.n_parts = 0;
+    // body part starts with boundary
+    do {
+        read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
+                                     next_line_checker, &block_terminator_status);
+        if (read_status == EOF)
+            break;
+        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+            skip_header_value(email_data, &block_terminator_status);
+            continue;
+        } else if (block_terminator_status == FILE_WRONG_TERM) {
+            continue;
+        }
+    } while (!stristr(str_buffer, boundary));
+    remove_whitespaces(email_data);
+    int c;
+    if (read_status == EOF || (c = fgetc(email_data)) == EOF) {
+        goto free_space;
+    }
     ungetc(c, email_data);
 
-    res.n_parts = 0;
+    res.n_parts = 1;
+    int contains_sth = 0;
     while (1) {
         read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
                                      next_line_checker, &block_terminator_status);
@@ -396,18 +408,19 @@ int main(int argc, const char **argv) {
             continue;
         }
 
-        if (stristr(str_buffer, boundary))
+        contains_sth |= read_status;
+        if (stristr(str_buffer, boundary)) {
             ++res.n_parts;
+            contains_sth = 0;
+        }
     }
-
-    res.n_parts = res.n_parts - 1;
-    if (!res.n_parts)
-        res.n_parts = 1;
+    if (!contains_sth)
+        --res.n_parts;
 
     free_space:
-    display_res(res);
-    free(boundary);
-    free_res(res);
-    fclose(email_data);
+        display_res(res);
+        free(boundary);
+        free_res(res);
+        fclose(email_data);
     return 0;
 }
