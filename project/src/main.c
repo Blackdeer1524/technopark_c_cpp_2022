@@ -239,12 +239,13 @@ void display_res(Results res) {
     printf("%s|%s|%s|%d", res.from, res.to, res.date, res.n_parts);
 }
 
-int rewrite_charptr(char **dest, const char *src, size_t n) {
+int rewrite_charptr(char **dest, const char *src, size_t src_str_length) {
     if (!dest || !src)
         return 1;
     free(*dest);
-    *dest = calloc(sizeof(char), n);
-    strncpy(*dest, src, n);
+    *dest = calloc(sizeof(char), src_str_length + 1);
+    strncpy(*dest, src, src_str_length);
+    (*dest)[src_str_length] = '\0';
     return 0;
 }
 
@@ -299,13 +300,13 @@ int main(int argc, const char **argv) {
 
         switch (cur_header) {
             case L_FROM_HEADER:
-                rewrite_charptr(&res.from, str_buffer, read_status + 1);
+                rewrite_charptr(&res.from, str_buffer, read_status);
                 break;
             case L_TO_HEADER:
-                rewrite_charptr(&res.to, str_buffer, read_status + 1);
+                rewrite_charptr(&res.to, str_buffer, read_status);
                 break;
             case L_DATE_HEADER:
-                rewrite_charptr(&res.date, str_buffer, read_status + 1);
+                rewrite_charptr(&res.date, str_buffer, read_status);
                 break;
             case L_CONTENT_TYPE_HEADER: {
                 char *multipart_start;
@@ -331,7 +332,7 @@ int main(int argc, const char **argv) {
                                               *(part_boundary+boundary_length) != ';'; ++boundary_length)
                     {}
                     if (boundary_length) {
-                        rewrite_charptr(&boundary, part_boundary, boundary_length + 1);
+                        rewrite_charptr(&boundary, part_boundary, boundary_length);
                         boundary[boundary_length] = '\0';
                     } else {
                         boundary = NULL;
