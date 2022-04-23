@@ -260,6 +260,7 @@ int main(int argc, const char **argv) {
     Results res = {NULL, NULL, NULL, 0};
     int read_status;
     char *boundary = NULL;
+    int boundary_length = 0;
     int block_terminator_status;
     char str_buffer[BUFFSIZE];
 
@@ -325,7 +326,6 @@ int main(int argc, const char **argv) {
 
                     if (*part_boundary == '\"')
                         ++part_boundary;
-                    int boundary_length;
                     for (boundary_length = 0; *(part_boundary+boundary_length) != '"' &&
                                               *(part_boundary+boundary_length) != '\0' &&
                                               *(part_boundary+boundary_length) != ';'; ++boundary_length)
@@ -348,7 +348,7 @@ int main(int argc, const char **argv) {
     }
 
     res.n_parts = 0;
-    int contains_sth = 0;
+    char *found_boundary_start;
     while (1) {
         read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
                                      next_line_checker, &block_terminator_status);
@@ -361,14 +361,12 @@ int main(int argc, const char **argv) {
             continue;
         }
 
-        contains_sth |= read_status;
-        if (stristr(str_buffer, boundary)) {
+        if ((found_boundary_start = stristr(str_buffer, boundary))) {
+            if (*(found_boundary_start + boundary_length) != '\0')
+                break;  // catches ending boundary that ends with <-->
             ++res.n_parts;
-            contains_sth = 0;
         }
     }
-    if (!contains_sth && res.n_parts)
-        --res.n_parts;
 
     free_space:
         display_res(res);
