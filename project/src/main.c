@@ -4,30 +4,11 @@
 #include <stdlib.h>
 
 #define BUFFSIZE 2400000
-
-// <От кого письмо>|<Кому письмо>|<Время получения письма>|<Количество партов письма>
-/*
- Нужно приводить имена заголовка к нижнему регистру
- При выводе заголовка в STDOUT необходимо заменить символы переноса строки и пробелы
-     перед значением заголовка на новой строке на один пробел.
-
- Могут быть в разнобой или отсутствовать
- From: L_SENDER
- To: L_RECEIVER, ..., L_RECEIVER
- Content-Type: L_CONTENT_TYPE; L_BOUNDARY
-   // Если не найден Content-Type ИЛИ multipart, то только один парт. Если нет тела - 0.
- Date: L_DATE   // Время получения письма
-
- могут быть многострочными: тогда обязательно начинаются с хотя бы одного пробела.
-
- Считать символом переноса строки в том числе символ \r (специфика Windows-систем).
- Допустима последовательность \r\n и наоборот.
- */
-
 #define FILE_EOF (-1)
 #define FILE_OK 0
 #define FILE_BLOCK_TERM 1
 #define FILE_WRONG_TERM 2
+
 
 int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
@@ -103,8 +84,12 @@ int read_in_buffer(FILE *email_data,
     return i;
 }
 
-int get_header_name(FILE *email_data, char header_value_buf[], int limit, int *block_terminator_status) {
-    return read_in_buffer(email_data, header_value_buf,  0, limit, header_name_end_checker, block_terminator_status);
+int get_header_name(FILE *email_data,
+                    char header_value_buf[],
+                    int limit,
+                    int *block_terminator_status) {
+    return read_in_buffer(email_data, header_value_buf,  0, limit,
+                          header_name_end_checker, block_terminator_status);
 }
 
 int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *block_terminator_status) {
@@ -134,7 +119,9 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *
     return current_buff_length;
 }
 
-int skip_read_in_buffer(FILE *email_data, block_termination_checker is_stop_char, int *block_terminator_status) {
+int skip_read_in_buffer(FILE *email_data,
+                        block_termination_checker is_stop_char,
+                        int *block_terminator_status) {
     int i;
     *block_terminator_status = FILE_OK;
     char c;
@@ -226,18 +213,11 @@ typedef struct {
 //                       lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
 //  }
 
-void free_res(Results res) {
-    free(res.date);
-    free(res.from);
-    free(res.to);
-}
-
 char* stristr(const char* haystack, const char* needle) {
     do {
-
-   const char* h = haystack;
+        const char* h = haystack;
         const char* n = needle;
-        while (tolower((unsigned char) *h) == tolower((unsigned char ) *n) && *n) {
+        while (tolower((unsigned char) *h) == tolower((unsigned char) *n) && *n) {
             h++;
             n++;
         }
@@ -249,21 +229,14 @@ char* stristr(const char* haystack, const char* needle) {
 }
 
 
-//  void manual_printf(const char *s) {
-//      for (; *s; ++s)
-//          putchar(*s);
-//  }
-
 void display_res(Results res) {
-    char test[BUFFSIZE];
     if (!res.from)
         res.from = "";
     if (!res.to)
         res.to = "";
     if (!res.date)
         res.date = "";
-    sprintf(test, "%s|%s|%s|%d", res.from, res.to, res.date, res.n_parts);
-    puts(test);
+    printf("%s|%s|%s|%d", res.from, res.to, res.date, res.n_parts);
 }
 
 int rewrite_charptr(char **dest, const char *src, size_t n) {
@@ -293,9 +266,9 @@ int main(int argc, const char **argv) {
     while (1) {
         // trying to read header
         read_status = get_header_name(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
-        if (read_status == EOF)
+        if (read_status == EOF) {
             break;
-        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+        } else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
             // skip header and its value if buffer overflow occurs
             skip_header_value(email_data, &block_terminator_status);
             continue;
@@ -314,9 +287,9 @@ int main(int argc, const char **argv) {
 
         // trying to read header value
         read_status = get_header_value(email_data, str_buffer, BUFFSIZE, &block_terminator_status);
-        if (read_status == EOF)
+        if (read_status == EOF) {
             break;
-        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+        } else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
             skip_header_value(email_data, &block_terminator_status);
             continue;
         } else if (block_terminator_status == FILE_WRONG_TERM) {
@@ -373,35 +346,15 @@ int main(int argc, const char **argv) {
         res.n_parts = 1;
         goto free_space;
     }
-    res.n_parts = 0;
-    // body part starts with boundary
-    do {
-        read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
-                                     next_line_checker, &block_terminator_status);
-        if (read_status == EOF)
-            break;
-        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
-            skip_header_value(email_data, &block_terminator_status);
-            continue;
-        } else if (block_terminator_status == FILE_WRONG_TERM) {
-            continue;
-        }
-    } while (!stristr(str_buffer, boundary));
-    remove_whitespaces(email_data);
-    int c;
-    if (read_status == EOF || (c = fgetc(email_data)) == EOF) {
-        goto free_space;
-    }
-    ungetc(c, email_data);
 
-    res.n_parts = 1;
+    res.n_parts = 0;
     int contains_sth = 0;
     while (1) {
         read_status = read_in_buffer(email_data, str_buffer, 0, BUFFSIZE,
                                      next_line_checker, &block_terminator_status);
-        if (read_status == EOF)
+        if (read_status == EOF) {
             break;
-        else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
+        } else if (read_status == BUFFSIZE - 1 && block_terminator_status == FILE_OK) {
             skip_header_value(email_data, &block_terminator_status);
             continue;
         } else if (block_terminator_status == FILE_WRONG_TERM) {
@@ -414,13 +367,15 @@ int main(int argc, const char **argv) {
             contains_sth = 0;
         }
     }
-    if (!contains_sth)
+    if (!contains_sth && res.n_parts)
         --res.n_parts;
 
     free_space:
         display_res(res);
         free(boundary);
-        free_res(res);
+        free(res.date);
+        free(res.from);
+        free(res.to);
         fclose(email_data);
     return 0;
 }
