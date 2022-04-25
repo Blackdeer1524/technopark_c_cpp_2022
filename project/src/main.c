@@ -1,14 +1,9 @@
-#include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdlib.h>
+
+#include "utils.h"
 
 #define BUFFSIZE 2400000
-#define FILE_EOF (-1)
-#define FILE_OK 0
-#define FILE_BLOCK_TERM 1
-#define FILE_WRONG_TERM 2
-
 
 int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
@@ -43,16 +38,6 @@ int header_name_end_checker(FILE *datafile, char *next_char) {
 
     return FILE_OK;
 }
-
-typedef int (*block_termination_checker)(FILE *, char *);
-
-typedef enum {
-    L_OTHER_HEADER,
-    L_FROM_HEADER,
-    L_TO_HEADER,
-    L_CONTENT_TYPE_HEADER,
-    L_DATE_HEADER
-} header_t;
 
 void remove_whitespaces(FILE *email_data) {
     int c;
@@ -184,35 +169,6 @@ header_t header2lexem(const char given_header_name[]) {
     return L_OTHER_HEADER;
 }
 
-typedef struct {
-    char *from;
-    char *to;
-    char *date;
-    int n_parts;
-} Results;
-
-
-//  void test_lower_strncmp() {
-//    static struct {
-//        char *a;
-//        char *b;
-//        int n;
-//        int res;
-//    } test_array[] = {{"Test", "Test", 4, 1},
-//                      {"Test", "tEst", 4, 1},
-//                      {"Ttew", "tEst", 4, 0},
-//                      {"", "wetw", 4, 0},
-//                      {"", "wetw", 0, 1},
-//                      {"", "", 0, 1},
-//                      {"Wwww", "ww", 1, 1},
-//                      {"wetw", "wett", 5, 0},
-//                      {"wEtw", "wett", 3, 1}};
-//
-//    for (size_t i = 0; i < sizeof (test_array) / sizeof (test_array[0]); ++i)
-//        printf("%d\n", test_array[i].res ==
-//                       lowercase_strncmp(test_array[i].a, test_array[i].b, test_array[i].n));
-//  }
-
 char* stristr(const char* haystack, const char* needle) {
     do {
         const char* h = haystack;
@@ -227,7 +183,6 @@ char* stristr(const char* haystack, const char* needle) {
     } while (*haystack++);
     return NULL;
 }
-
 
 void display_res(Results res) {
     if (!res.from)
