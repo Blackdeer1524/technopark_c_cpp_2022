@@ -3,7 +3,7 @@
 
 #include "utils.h"
 
-#define BUFFSIZE 2400000
+
 
 int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
@@ -49,36 +49,49 @@ void remove_whitespaces(FILE *email_data) {
 // возвращает длину прочитанного; EOF если EOF И ничего не прочитал
 int read_in_buffer(FILE *email_data,
                    char saving_buffer[],
-                   int starting_position,
-                   int limit,
+                   bufflength_type starting_position,
+                   bufflength_type limit,
                    block_termination_checker is_stop_char,
                    int *block_terminator_status) {
+    if (!email_data || !limit || !block_terminator_status)
+        return FILE_WRONG_PARAMS;
+
     *block_terminator_status = FILE_OK;
-    int i;
+    bufflength_type i;
     char c = '\0';
-    for (i = starting_position;
+    for (i = (starting_position > limit - 1) ? (limit - 1) : starting_position;
          i < limit - 1 && (*block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK;
          ++i)
         saving_buffer[i] = c;
+    // Overflow check
+    if (*block_terminator_status == FILE_OK)
+        ungetc(c, email_data);
+
+    for (bufflength_type j = i - 1; j >= starting_position && isblank(saving_buffer[j]); --j, --i)
+    {}
     saving_buffer[i] = '\0';
 
-    if (*block_terminator_status == FILE_EOF && i == starting_position)
+    if (i == starting_position && *block_terminator_status == FILE_EOF)
         return EOF;
-    for (int j = i - 1; j >= starting_position && isblank(saving_buffer[j]); --j, --i)
-        saving_buffer[j] = '\0';
     return i;
 }
 
 int get_header_name(FILE *email_data,
                     char header_value_buf[],
-                    int limit,
+                    bufflength_type limit,
                     int *block_terminator_status) {
+    if (!email_data || !limit || !block_terminator_status)
+        return FILE_WRONG_PARAMS;
+
     return read_in_buffer(email_data, header_value_buf,  0, limit,
                           header_name_end_checker, block_terminator_status);
 }
 
-int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *block_terminator_status) {
-    int current_buff_length = 0;
+int get_header_value(FILE *email_data, char header_value_buf[], bufflength_type limit, int *block_terminator_status) {
+    if (!email_data || !limit || !block_terminator_status)
+        return FILE_WRONG_PARAMS;
+
+    bufflength_type current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
         int c;
@@ -107,7 +120,10 @@ int get_header_value(FILE *email_data, char header_value_buf[], int limit, int *
 int skip_read_in_buffer(FILE *email_data,
                         block_termination_checker is_stop_char,
                         int *block_terminator_status) {
-    int i;
+    if (!email_data || !block_terminator_status)
+        return FILE_WRONG_PARAMS;
+
+    bufflength_type i;
     *block_terminator_status = FILE_OK;
     char c;
     for (i = 0; (*block_terminator_status = (*is_stop_char)(email_data, &c)) == FILE_OK; ++i)
@@ -119,14 +135,17 @@ int skip_read_in_buffer(FILE *email_data,
 }
 
 int skip_header_value(FILE *email_data, int *block_terminator_status) {
-    int current_buff_length = 0;
+    if (!email_data || !block_terminator_status)
+        return FILE_WRONG_PARAMS;
+
+    bufflength_type current_buff_length = 0;
     remove_whitespaces(email_data);
     while (1) {
-        int c;
         *block_terminator_status = FILE_OK;
         current_buff_length = skip_read_in_buffer(email_data, next_line_checker, block_terminator_status);
         // c = fgetc(email_data) : getting the first char of the next
         // line to check whether header value continues
+        int c;
         if (*block_terminator_status == FILE_WRONG_TERM || current_buff_length == EOF
             || (c = fgetc(email_data)) == EOF)
             break;
@@ -145,8 +164,7 @@ int skip_header_value(FILE *email_data, int *block_terminator_status) {
 
 int lowercase_strncmp(const char *s, const char *t, unsigned long n) {
     unsigned long i;
-    for (i=0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s)
-    {}
+    for (i = 0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s) {}
     if (i == n)
         return 1;
     return 0;
@@ -163,7 +181,7 @@ header_t header2lexem(const char given_header_name[]) {
     static int tag_names_length = sizeof (tag_names) / sizeof (tag_names[0]);
 
     unsigned long input_length = strlen(given_header_name);
-    for (int i = 0; i < tag_names_length; ++i)
+    for (bufflength_type i = 0; i < tag_names_length; ++i)
         if (lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
             return tag_names[i].header;
     return L_OTHER_HEADER;
@@ -206,17 +224,17 @@ int rewrite_charptr(char **dest, const char *src, size_t src_str_length) {
 
 int main(int argc, const char **argv) {
     if (argc != 2) {
-        return -1;
+        return FILE_WRONG_PARAMS;
     }
     const char *path_to_eml = argv[1];
     FILE *email_data = fopen(path_to_eml, "r");
     if (!email_data)
-        return -1;
+        return FILE_WRONG_PARAMS;
 
     Results res = {NULL, NULL, NULL, 0};
-    int read_status;
+    bufflength_type read_status;
     char *boundary = NULL;
-    int boundary_length = 0;
+    bufflength_type boundary_length = 0;
     int block_terminator_status;
     char str_buffer[BUFFSIZE];
 
@@ -230,7 +248,7 @@ int main(int argc, const char **argv) {
             skip_header_value(email_data, &block_terminator_status);
             continue;
         } else if (block_terminator_status == FILE_WRONG_TERM) {
-            if (!read_status)  // finds a start of a body part
+            if (!read_status)  // start of a body part found
                 break;
             continue;
         }
@@ -286,12 +304,10 @@ int main(int argc, const char **argv) {
                                               *(part_boundary+boundary_length) != '\0' &&
                                               *(part_boundary+boundary_length) != ';'; ++boundary_length)
                     {}
-                    if (boundary_length) {
+                    if (boundary_length)
                         rewrite_charptr(&boundary, part_boundary, boundary_length);
-                        boundary[boundary_length] = '\0';
-                    } else {
+                    else
                         boundary = NULL;
-                    }
                 }
             }
                 break;

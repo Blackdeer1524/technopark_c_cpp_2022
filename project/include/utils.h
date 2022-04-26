@@ -8,10 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef int bufflength_type;
+
+#define BUFFSIZE 2400000
+#define FILE_WRONG_PARAMS (-2)
 #define FILE_EOF (-1)
 #define FILE_OK 0
 #define FILE_BLOCK_TERM 1
 #define FILE_WRONG_TERM 2
+
 
 int next_line_checker(FILE *datafile, char *next_char);
 
