@@ -52,7 +52,7 @@ int read_in_buffer(FILE *email_data,
                    bufflength_type limit,
                    block_termination_checker is_stop_char,
                    int *block_terminator_status) {
-    if (!email_data || !limit || !block_terminator_status)
+    if (!email_data || limit <= 0 || starting_position < 0 || !block_terminator_status )
         return FILE_WRONG_PARAMS;
 
     *block_terminator_status = FILE_OK;
@@ -90,7 +90,7 @@ int get_header_value(FILE *email_data,
                      char header_value_buf[],
                      bufflength_type limit,
                      int *block_terminator_status) {
-    if (!email_data || !limit || !block_terminator_status)
+    if (!email_data || limit <= 0 || !block_terminator_status)
         return FILE_WRONG_PARAMS;
 
     bufflength_type current_buff_length = 0;
@@ -166,7 +166,8 @@ int skip_header_value(FILE *email_data, int *block_terminator_status) {
 
 int lowercase_strncmp(const char *s, const char *t, unsigned long n) {
     unsigned long i;
-    for (i = 0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s) {}
+    for (i = 0; i < n && *s && *t && tolower(*s) == tolower(*t); ++i, ++t, ++s)
+    {}
     if (i == n)
         return 1;
     return 0;
@@ -175,16 +176,18 @@ int lowercase_strncmp(const char *s, const char *t, unsigned long n) {
 header_t header2lexem(const char given_header_name[]) {
     static struct {
         char *header_name;
+        unsigned long size;
         header_t header;
-    } tag_names[] = {{"from", L_FROM_HEADER},
-                     {"to", L_TO_HEADER},
-                     {"date", L_DATE_HEADER},
-                     {"content-type", L_CONTENT_TYPE_HEADER}};
+    } tag_names[] = {{"from",          4, L_FROM_HEADER},
+                     {"to",            2, L_TO_HEADER},
+                     {"date",          4, L_DATE_HEADER},
+                     {"content-type", 12, L_CONTENT_TYPE_HEADER}};
     static int tag_names_length = sizeof (tag_names) / sizeof (tag_names[0]);
 
     unsigned long input_length = strlen(given_header_name);
     for (bufflength_type i = 0; i < tag_names_length; ++i)
-        if (lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
+        if (input_length == tag_names[i].size &&
+            lowercase_strncmp(tag_names[i].header_name, given_header_name, input_length))
             return tag_names[i].header;
     return L_OTHER_HEADER;
 }
