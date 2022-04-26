@@ -4,7 +4,6 @@
 #include "utils.h"
 
 
-
 int next_line_checker(FILE *datafile, char *next_char) {
     int c = fgetc(datafile);
     int opposite_c;
@@ -87,7 +86,10 @@ int get_header_name(FILE *email_data,
                           header_name_end_checker, block_terminator_status);
 }
 
-int get_header_value(FILE *email_data, char header_value_buf[], bufflength_type limit, int *block_terminator_status) {
+int get_header_value(FILE *email_data,
+                     char header_value_buf[],
+                     bufflength_type limit,
+                     int *block_terminator_status) {
     if (!email_data || !limit || !block_terminator_status)
         return FILE_WRONG_PARAMS;
 
