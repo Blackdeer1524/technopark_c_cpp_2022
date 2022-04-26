@@ -79,8 +79,8 @@ for test in ${TESTS}; do
 
     if [ -n "${EXPECTED}" ] && [ "${EXPECTED}" != "${RECEIVED}" ]; then
         echo -e "TEST ${test} FAILED"\
-                "\nEXPECTED (${#EXPECTED} symbols):\n${EXPECTED}"\
-                "\nRECEIVED (${#RECEIVED} symbols):\n${RECEIVED}"
+                "\nEXPECTED (${#EXPECTED} symbols):\n<start>${EXPECTED}<end>"\
+                "\nRECEIVED (${#RECEIVED} symbols):\n<start>${RECEIVED}<end>"
         exit 1
     fi
 
