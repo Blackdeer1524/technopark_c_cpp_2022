@@ -24,7 +24,7 @@ memtest: $(TARGET)
 rebuild: clean build
 
 $(TARGET): $(SRCS)
-	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET) $(CFLAGS) $(SRCS)
+	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET) $(CFLAGS) $(SRCS) -g
 
 clean:
 	rm -f $(TARGET) ${VALGRIND_LOG}
